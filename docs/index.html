@@ -835,7 +835,7 @@
   <div class="nav-actions">
     <a href="#features-section" class="nav-link">Funktionen</a>
     <a href="#how-section" class="nav-link">So funktioniert's</a>
-    <a href="https://github.com/YOUR_USERNAME/Giga-Share" target="_blank" class="nav-link">GitHub</a>
+    <a href="https://github.com/Emre1001/Giga-Share" target="_blank" class="nav-link">GitHub</a>
     <a href="#" class="nav-cta" id="nav-dl-btn">Herunterladen</a>
   </div>
 </nav>
@@ -851,7 +851,7 @@
       LAN + Weltweites P2P · Keine Cloud erforderlich
     </div>
 
-    <h1 class="hero-title">Teilen mit<br><span>Giga-Speed</span></h1>
+    <h1 class="hero-title">Teilen mit<br><span>Giga-Share</span></h1>
     <p class="hero-sub">
       Dateien zwischen <strong>jedem Gerät, überall</strong> senden — lokal über WLAN oder weltweit via verschlüsseltem P2P.
       Keine Cloud. Keine Konten. Keine Dateigrößenbeschränkung.
@@ -892,25 +892,24 @@
             <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('android')">APK</a>
           </div>
         </div>
-        <div class="platform-item" onclick="dl('linux-appimage')">
+        <div class="platform-item" style="opacity:0.5;cursor:default;">
           <div class="platform-icon" style="background:rgba(251,191,36,0.15);">🐧</div>
           <div class="platform-info">
             <div class="platform-name">Linux</div>
-            <div class="platform-desc">AppImage (portabel) · .deb (Ubuntu/Debian)</div>
+            <div class="platform-desc">Coming Soon</div>
           </div>
           <div class="platform-btns">
-            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('linux-appimage')">AppImage</a>
-            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('linux-deb')">.deb</a>
+            <span class="platform-btn-sm" style="cursor:default;opacity:0.5;">Coming Soon</span>
           </div>
         </div>
-        <div class="platform-item" onclick="dl('macos')">
+        <div class="platform-item" style="opacity:0.5;cursor:default;">
           <div class="platform-icon" style="background:rgba(241,245,249,0.08);">🍎</div>
           <div class="platform-info">
             <div class="platform-name">macOS</div>
-            <div class="platform-desc">macOS 12+ · Universal (Intel + Apple Silicon)</div>
+            <div class="platform-desc">Coming Soon</div>
           </div>
           <div class="platform-btns">
-            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('macos')">DMG</a>
+            <span class="platform-btn-sm" style="cursor:default;opacity:0.5;">Coming Soon</span>
           </div>
         </div>
       </div>
@@ -1437,26 +1436,23 @@
 <footer>
   <span class="footer-logo">⚡ Giga-Share</span>
   <div class="footer-links">
-    <a href="https://github.com/YOUR_USERNAME/Giga-Share" target="_blank" class="footer-link">GitHub</a>
-    <a href="https://github.com/YOUR_USERNAME/Giga-Share/issues" target="_blank" class="footer-link">Bug melden</a>
-    <a href="https://github.com/YOUR_USERNAME/Giga-Share/issues" target="_blank" class="footer-link">Feature anfragen</a>
-    <a href="https://github.com/YOUR_USERNAME/Giga-Share/releases" target="_blank" class="footer-link">Veröffentlichungen</a>
+    <a href="https://github.com/Emre1001/Giga-Share" target="_blank" class="footer-link">GitHub</a>
+    <a href="https://github.com/Emre1001/Giga-Share/issues" target="_blank" class="footer-link">Bug melden</a>
+    <a href="https://github.com/Emre1001/Giga-Share/issues" target="_blank" class="footer-link">Feature anfragen</a>
+    <a href="https://github.com/Emre1001/Giga-Share/releases" target="_blank" class="footer-link">Veröffentlichungen</a>
   </div>
   <span class="footer-copy">Entwickelt mit Rust, React &amp; iroh · MIT-Lizenz</span>
 </footer>
 
 <script>
-  // ── CONFIG ── Update this before publishing!
-  const GITHUB_REPO = 'YOUR_USERNAME/Giga-Share';
-  const RELEASES = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
+  // ── CONFIG ──
+  const GITHUB_REPO = 'Emre1001/Giga-Share';
 
   const DOWNLOAD_URLS = {
-    'windows-setup':    `${RELEASES}/Giga-Share-Setup.exe`,
-    'windows-portable': `${RELEASES}/Giga-Share-Portable.exe`,
-    'android':          `${RELEASES}/Giga-Share.apk`,
-    'linux-appimage':   `${RELEASES}/Giga-Share.AppImage`,
-    'linux-deb':        `${RELEASES}/Giga-Share.deb`,
-    'macos':            `${RELEASES}/Giga-Share.dmg`,
+    'windows-setup':    'https://github.com/Emre1001/Giga-Share/releases/download/Release1.2/Giga-Share-Setup.exe',
+    'windows-msi':      'https://github.com/Emre1001/Giga-Share/releases/download/Release1.2/Giga-Share.msi',
+    'windows-portable': 'https://github.com/Emre1001/Giga-Share/releases/download/Release1.2/Giga-SharePortable.exe',
+    'android':          'https://github.com/Emre1001/Giga-Share/releases/download/Release1.2/Giga-Share.apk',
   };
 
   function dl(target) {
@@ -1491,7 +1487,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           Portabel .exe
         </a>`;
-      if (note) note.textContent = 'Windows 10/11 · x64 · Auch verfügbar: MSI-Installer auf der Releases-Seite';
+      if (note) note.textContent = 'Windows 10/11 · x64 · Auch verfügbar: MSI-Installer';
 
     } else if (os === 'android') {
       container.innerHTML = `
@@ -1501,25 +1497,13 @@
         </a>`;
       if (note) note.textContent = 'Android 8.0+ · „Unbekannte Apps installieren" in Einstellungen aktivieren · APK v2+v3 signiert';
 
-    } else if (os === 'macos') {
+    } else if (os === 'macos' || os === 'linux') {
       container.innerHTML = `
-        <a href="${DOWNLOAD_URLS['macos']}" class="dl-btn dl-btn-primary">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-          Für macOS herunterladen
-        </a>`;
-      if (note) note.textContent = 'macOS 12+ · Universal-Build (Intel + Apple Silicon) · Evtl. in Systemeinstellungen freigeben';
-
-    } else if (os === 'linux') {
-      container.innerHTML = `
-        <a href="${DOWNLOAD_URLS['linux-appimage']}" class="dl-btn dl-btn-primary">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.581 19.049c-.55-.446-.336-1.431-.907-1.917.553-3.365-.997-6.331-2.845-8.232C15.098 7.043 13.532 6 12.008 6h-.016c-1.524 0-3.09 1.043-4.821 2.9-1.848 1.901-3.398 4.867-2.845 8.232-.571.486-.357 1.471-.907 1.917-.553.448-1.mentioned 1.151-.194 1.297.574.101 2.267-1.464 2.267-1.464 0 .587.287 1.438.804 2.034.508.588 1.227.919 2.138.919.72 0 1.527-.273 2.046-.819l.524-.557.524.557c.519.546 1.326.819 2.046.819.911 0 1.63-.331 2.138-.919.517-.596.804-1.447.804-2.034 0 0 1.693 1.565 2.267 1.464.96-.146.359-.849-.193-1.297z"/></svg>
-          AppImage (Portabel)
-        </a>
-        <a href="${DOWNLOAD_URLS['linux-deb']}" class="dl-btn dl-btn-secondary">
+        <div class="dl-btn dl-btn-secondary" style="cursor:default;opacity:0.6">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          .deb-Paket
-        </a>`;
-      if (note) note.textContent = 'Linux x86_64 · AppImage läuft auf allen Distros · .deb für Ubuntu/Debian';
+          Coming Soon
+        </div>`;
+      if (note) note.textContent = os === 'macos' ? 'macOS-Version ist in Entwicklung.' : 'Linux-Version ist in Entwicklung.';
 
     } else if (os === 'ios') {
       container.innerHTML = `
@@ -1534,8 +1518,6 @@
     const navBtn = document.getElementById('nav-dl-btn');
     if (navBtn) {
       const href = os === 'android' ? DOWNLOAD_URLS['android'] :
-                   os === 'macos'   ? DOWNLOAD_URLS['macos'] :
-                   os === 'linux'   ? DOWNLOAD_URLS['linux-appimage'] :
                    DOWNLOAD_URLS['windows-setup'];
       navBtn.href = href;
     }
