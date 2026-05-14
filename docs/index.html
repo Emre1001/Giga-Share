@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giga-Share — Blazing Fast File Sharing</title>
+  <meta name="description" content="Send files between any device, anywhere. LAN or P2P worldwide. No cloud. No accounts. No file size limits.">
+  <meta property="og:title" content="Giga-Share — Blazing Fast File Sharing">
+  <meta property="og:description" content="No cloud. No accounts. No limits. LAN or encrypted P2P worldwide.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #050508;
+      --bg2: #09090f;
+      --bg3: #0d0d1a;
+      --purple: #8b5cf6;
+      --purple-dim: #6d28d9;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --green: #10b981;
+      --rose: #f43f5e;
+      --glass: rgba(255,255,255,0.04);
+      --glass2: rgba(255,255,255,0.07);
+      --glass3: rgba(255,255,255,0.10);
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --border3: rgba(255,255,255,0.22);
+      --text: #f1f5f9;
+      --text-dim: rgba(241,245,249,0.55);
+      --text-dimmer: rgba(241,245,249,0.30);
+      --purple-glow: rgba(139,92,246,0.35);
+      --blue-glow: rgba(59,130,246,0.35);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px;
+      height: 64px;
+      background: rgba(5,5,8,0.6);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    nav.scrolled {
+      background: rgba(5,5,8,0.9);
+      border-bottom-color: var(--border2);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+    }
+    .nav-logo svg { flex-shrink: 0; }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .nav-link {
+      color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500;
+      padding: 6px 14px; border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-link:hover { color: var(--text); background: var(--glass2); }
+    .nav-cta {
+      padding: 8px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      color: white; border: none; cursor: pointer;
+      transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+    }
+    .nav-cta:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 8px 24px var(--purple-glow); }
+
+    /* ── HERO ── */
+    #hero {
+      position: relative; min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 100px 24px 60px;
+      overflow: hidden;
+    }
+    #particles-canvas {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+    .hero-glow-1 {
+      position: absolute; top: 10%; left: 15%;
+      width: 500px; height: 500px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,0.18) 0%, transparent 70%);
+      animation: drift1 8s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+    .hero-glow-2 {
+      position: absolute; bottom: 10%; right: 15%;
+      width: 400px; height: 400px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
+      animation: drift2 10s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+    @keyframes drift1 {
+      from { transform: translate(0,0) scale(1); }
+      to { transform: translate(30px, -40px) scale(1.15); }
+    }
+    @keyframes drift2 {
+      from { transform: translate(0,0) scale(1); }
+      to { transform: translate(-25px, 30px) scale(1.1); }
+    }
+    .hero-content {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; max-width: 780px;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 100px;
+      background: var(--glass2);
+      border: 1px solid var(--border2);
+      font-size: 12px; font-weight: 600; color: var(--purple);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 28px;
+      animation: fadeInDown 0.8s ease both;
+    }
+    .hero-badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--purple);
+      animation: pulse-dot 2s ease infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.7); }
+      50% { box-shadow: 0 0 0 6px rgba(139,92,246,0); }
+    }
+    .hero-title {
+      font-size: clamp(52px, 9vw, 100px);
+      font-weight: 900; line-height: 0.95;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.6) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+      animation: fadeInUp 0.9s 0.1s ease both;
+    }
+    .hero-title span {
+      background: linear-gradient(135deg, var(--purple), var(--blue), var(--cyan));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: clamp(16px, 2.5vw, 22px);
+      font-weight: 400; color: var(--text-dim);
+      line-height: 1.6; max-width: 560px;
+      margin-bottom: 48px;
+      animation: fadeInUp 0.9s 0.2s ease both;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 600; }
+
+    /* Download area */
+    .download-area {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      width: 100%; max-width: 500px;
+      animation: fadeInUp 0.9s 0.3s ease both;
+    }
+    .primary-btns {
+      display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+    }
+    .dl-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px; border-radius: 14px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.25s ease;
+      border: none;
+    }
+    .dl-btn-primary {
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      color: #fff;
+      box-shadow: 0 4px 20px var(--purple-glow), 0 0 0 1px rgba(139,92,246,0.3);
+    }
+    .dl-btn-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 12px 40px var(--purple-glow), 0 0 0 1px rgba(139,92,246,0.5);
+    }
+    .dl-btn-secondary {
+      background: var(--glass2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      backdrop-filter: blur(10px);
+    }
+    .dl-btn-secondary:hover {
+      background: var(--glass3);
+      border-color: var(--border3);
+      transform: translateY(-2px);
+    }
+    .dl-btn svg { flex-shrink: 0; }
+
+    .platforms-toggle {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: none; cursor: pointer;
+      color: var(--text-dimmer); font-size: 13px; font-weight: 500;
+      padding: 6px 12px; border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .platforms-toggle:hover { color: var(--text-dim); background: var(--glass); }
+    .platforms-toggle .arrow { transition: transform 0.3s ease; display: inline-block; }
+    .platforms-toggle.open .arrow { transform: rotate(180deg); }
+
+    .platforms-dropdown {
+      width: 100%; max-width: 460px;
+      background: var(--glass2);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s;
+      opacity: 0;
+      backdrop-filter: blur(20px);
+    }
+    .platforms-dropdown.open { max-height: 400px; opacity: 1; }
+    .platform-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .platform-item:last-child { border-bottom: none; }
+    .platform-item:hover { background: var(--glass2); }
+    .platform-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .platform-info { flex: 1; text-align: left; }
+    .platform-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .platform-desc { font-size: 12px; color: var(--text-dim); }
+    .platform-btns { display: flex; gap: 8px; }
+    .platform-btn-sm {
+      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border2); background: var(--glass);
+      color: var(--text); cursor: pointer; text-decoration: none;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .platform-btn-sm:hover { background: var(--glass2); border-color: var(--border3); }
+
+    .hero-note {
+      font-size: 11px; color: var(--text-dimmer);
+      text-align: center; margin-top: 4px;
+    }
+
+    /* Scroll indicator */
+    .scroll-indicator {
+      position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      animation: fadeInUp 1s 1s ease both;
+    }
+    .scroll-indicator span { font-size: 11px; color: var(--text-dimmer); letter-spacing: 0.1em; text-transform: uppercase; }
+    .scroll-mouse {
+      width: 22px; height: 36px; border: 2px solid var(--border2);
+      border-radius: 11px; position: relative;
+    }
+    .scroll-mouse::after {
+      content: ''; position: absolute;
+      top: 6px; left: 50%; transform: translateX(-50%);
+      width: 3px; height: 6px; border-radius: 2px;
+      background: var(--purple);
+      animation: scroll-wheel 1.8s ease infinite;
+    }
+    @keyframes scroll-wheel {
+      0% { opacity: 1; top: 6px; }
+      100% { opacity: 0; top: 20px; }
+    }
+
+    /* ── SECTION COMMONS ── */
+    section { position: relative; }
+    .section-label {
+      display: inline-block;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--purple);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .section-sub {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text-dim); line-height: 1.7;
+      max-width: 560px;
+    }
+    .grad-text {
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── SHOWCASE (pinned scroll section) ── */
+    #showcase-wrapper {
+      height: 500vh;
+      position: relative;
+    }
+    #showcase-sticky {
+      position: sticky; top: 0;
+      height: 100vh; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .showcase-inner {
+      width: 100%; max-width: 1200px;
+      margin: 0 auto; padding: 0 40px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      align-items: center; gap: 60px;
+    }
+    .showcase-text { position: relative; }
+    .showcase-chapter {
+      position: absolute; top: 0; left: 0; right: 0;
+      opacity: 0; transform: translateY(24px);
+      pointer-events: none;
+      transition: opacity 0.55s cubic-bezier(0.4,0,0.2,1),
+                  transform 0.55s cubic-bezier(0.4,0,0.2,1);
+      will-change: opacity, transform;
+    }
+    .showcase-chapter.active {
+      position: relative; opacity: 1; transform: translateY(0);
+      pointer-events: auto;
+    }
+    .showcase-chapter.exit-up   { opacity: 0; transform: translateY(-24px); }
+    .showcase-chapter.exit-down { opacity: 0; transform: translateY(24px); }
+    .chapter-step {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px; border-radius: 20px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      font-size: 11px; font-weight: 700; color: var(--purple);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .chapter-title {
+      font-size: clamp(28px, 4vw, 46px);
+      font-weight: 800; line-height: 1.15;
+      letter-spacing: -0.03em; margin-bottom: 16px;
+    }
+    .chapter-body {
+      font-size: 16px; color: var(--text-dim);
+      line-height: 1.75; margin-bottom: 28px;
+    }
+    .chapter-pills {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .pill {
+      padding: 6px 14px; border-radius: 20px;
+      background: var(--glass2); border: 1px solid var(--border2);
+      font-size: 12px; font-weight: 600; color: var(--text-dim);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    /* DEVICE MOCKUPS */
+    .showcase-devices {
+      position: relative; display: flex;
+      align-items: center; justify-content: center;
+      perspective: 1200px;
+    }
+    .monitor-wrap {
+      position: relative; z-index: 2;
+      transform-style: preserve-3d;
+      transition: transform 0.9s cubic-bezier(0.4,0,0.2,1);
+      will-change: transform;
+    }
+    .monitor-frame {
+      width: 340px;
+      background: #1a1a2e;
+      border-radius: 16px 16px 0 0;
+      border: 2px solid #2a2a3e;
+      box-shadow: 0 0 0 1px #0d0d1a, 0 30px 80px rgba(0,0,0,0.8),
+                  inset 0 1px 0 rgba(255,255,255,0.08);
+      overflow: hidden;
+      position: relative;
+    }
+    .monitor-topbar {
+      height: 28px; background: #12121e;
+      border-bottom: 1px solid #2a2a3e;
+      display: flex; align-items: center; padding: 0 12px; gap: 6px;
+    }
+    .monitor-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .monitor-screen-area {
+      height: 220px;
+      background: #050508;
+      overflow: hidden; position: relative;
+    }
+    .monitor-stand {
+      width: 60px; height: 24px;
+      background: linear-gradient(180deg, #1a1a2e, #12121e);
+      margin: 0 auto;
+      border-left: 2px solid #2a2a3e;
+      border-right: 2px solid #2a2a3e;
+    }
+    .monitor-base {
+      width: 120px; height: 8px; background: #12121e;
+      border-radius: 4px; margin: 0 auto;
+      border: 1px solid #2a2a3e;
+    }
+
+    /* Phone */
+    .phone-wrap {
+      position: absolute; right: -60px; bottom: 10px;
+      z-index: 3;
+      transform-style: preserve-3d;
+    }
+    .phone-frame {
+      width: 120px; height: 220px;
+      background: #0f0f1a;
+      border-radius: 22px;
+      border: 2px solid #252535;
+      box-shadow: 0 0 0 1px #08080f, 0 20px 60px rgba(0,0,0,0.9),
+                  inset 0 1px 0 rgba(255,255,255,0.08);
+      overflow: hidden; position: relative;
+    }
+    .phone-notch {
+      width: 40px; height: 10px;
+      background: #050508; border-radius: 0 0 10px 10px;
+      margin: 0 auto; position: relative; z-index: 1;
+    }
+    .phone-screen-area {
+      height: 188px; background: #050508;
+      margin-top: -10px; position: relative; overflow: hidden;
+    }
+    .phone-home {
+      height: 4px; width: 36px; border-radius: 2px;
+      background: rgba(255,255,255,0.2);
+      margin: 4px auto;
+    }
+
+    /* Mini App UI inside screens */
+    .mini-app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px 6px;
+    }
+    .mini-logo { font-size: 9px; font-weight: 800; color: var(--purple); }
+    .mini-mode-badge {
+      font-size: 7px; font-weight: 700;
+      padding: 2px 6px; border-radius: 6px;
+      background: rgba(139,92,246,0.2);
+      color: var(--purple);
+      border: 1px solid rgba(139,92,246,0.3);
+    }
+
+    /* Mini radar inside monitor */
+    .mini-radar-container {
+      display: flex; align-items: center; justify-content: center;
+      padding: 8px;
+    }
+    .mini-radar-svg {
+      width: 140px; height: 140px;
+    }
+
+    /* Mini transfer bar */
+    .mini-transfer {
+      margin: 6px 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .mini-transfer-header {
+      display: flex; justify-content: space-between;
+      font-size: 7px; margin-bottom: 5px;
+      color: rgba(255,255,255,0.6);
+    }
+    .mini-progress-bar {
+      height: 3px; background: rgba(255,255,255,0.08);
+      border-radius: 2px; overflow: hidden;
+    }
+    .mini-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--purple), var(--blue));
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+    .mini-stats-row {
+      display: flex; justify-content: space-around;
+      margin-top: 6px;
+    }
+    .mini-stat { text-align: center; }
+    .mini-stat-val { font-size: 8px; font-weight: 700; color: var(--text); }
+    .mini-stat-lbl { font-size: 6px; color: var(--text-dimmer); }
+
+    /* Phone mini UI */
+    .mini-phone-header {
+      padding: 4px 8px; font-size: 7px; font-weight: 800; color: var(--purple);
+    }
+    .mini-phone-radar { padding: 0 8px; }
+    .mini-phone-radar-svg { width: 100px; height: 90px; margin: 0 auto; display: block; }
+    .mini-share-sheet {
+      margin: 4px 6px;
+      background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 8px; padding: 6px 8px;
+    }
+    .mini-share-title { font-size: 7px; font-weight: 700; color: var(--purple); margin-bottom: 4px; }
+    .mini-share-file {
+      font-size: 6px; color: var(--text-dim);
+      background: rgba(255,255,255,0.04);
+      border-radius: 4px; padding: 3px 5px;
+    }
+
+    /* Scroll progress dots */
+    .showcase-dots {
+      position: absolute; left: 50%; bottom: 40px;
+      transform: translateX(-50%);
+      display: flex; gap: 8px; z-index: 10;
+    }
+    .showcase-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--border2);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .showcase-dot.active {
+      background: var(--purple);
+      box-shadow: 0 0 10px var(--purple-glow);
+      transform: scale(1.4);
+    }
+
+    /* ── RADAR SECTION ── */
+    #radar-section {
+      padding: 120px 24px;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center;
+    }
+    .big-radar-wrap {
+      position: relative; width: 480px; max-width: 90vw;
+      aspect-ratio: 1; margin: 60px auto 0;
+    }
+    .big-radar-glow {
+      position: absolute; inset: -20%;
+      background: radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .big-radar-svg { width: 100%; height: 100%; }
+
+    /* Peer labels */
+    .peer-label-group { cursor: default; }
+    .peer-label-bg {
+      fill: rgba(13,13,26,0.85);
+      rx: 6; ry: 6;
+    }
+    .peer-label-text {
+      fill: rgba(241,245,249,0.9);
+      font-family: 'Inter', sans-serif;
+      font-size: 10px; font-weight: 600;
+    }
+
+    /* ── FEATURES SECTION ── */
+    #features-section {
+      padding: 120px 24px;
+      max-width: 1200px; margin: 0 auto;
+    }
+    .features-header { text-align: center; margin-bottom: 70px; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 28px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+      opacity: 0; transform: translateY(40px);
+    }
+    .feature-card::before {
+      content: ''; position: absolute;
+      inset: 0; border-radius: 20px;
+      background: radial-gradient(600px circle at var(--x, 50%) var(--y, 50%),
+                  rgba(139,92,246,0.06), transparent 40%);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-card:hover {
+      border-color: rgba(139,92,246,0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139,92,246,0.15);
+    }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px; font-size: 22px;
+    }
+    .feature-title {
+      font-size: 17px; font-weight: 700; margin-bottom: 10px;
+    }
+    .feature-desc {
+      font-size: 14px; color: var(--text-dim); line-height: 1.65;
+    }
+
+    /* ── HOW IT WORKS ── */
+    #how-section {
+      padding: 120px 24px;
+      background: linear-gradient(180deg, transparent, rgba(139,92,246,0.03), transparent);
+    }
+    .how-inner {
+      max-width: 1100px; margin: 0 auto;
+    }
+    .how-header { text-align: center; margin-bottom: 70px; }
+    .modes-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+    }
+    .mode-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 24px; padding: 36px;
+      opacity: 0; transform: translateY(40px);
+    }
+    .mode-card-header {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 28px;
+    }
+    .mode-icon {
+      width: 52px; height: 52px; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+    }
+    .mode-title { font-size: 22px; font-weight: 800; }
+    .mode-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .mode-steps { display: flex; flex-direction: column; gap: 20px; }
+    .mode-step {
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-content { flex: 1; }
+    .step-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .step-desc { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+
+    /* ── SECURITY / STATS ── */
+    #security-section {
+      padding: 120px 24px;
+      text-align: center;
+    }
+    .security-inner { max-width: 900px; margin: 0 auto; }
+    .security-shield {
+      width: 100px; height: 100px; margin: 0 auto 40px;
+      position: relative;
+    }
+    .security-shield svg {
+      width: 100%; height: 100%;
+      filter: drop-shadow(0 0 20px rgba(16,185,129,0.4));
+    }
+    .stats-row {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 32px; margin-top: 60px;
+    }
+    .stat-block { text-align: center; }
+    .stat-num {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 900; letter-spacing: -0.04em;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label { font-size: 14px; color: var(--text-dim); font-weight: 500; margin-top: 4px; }
+
+    /* ── CTA SECTION ── */
+    #cta-section {
+      padding: 120px 24px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .cta-glow {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 400px;
+      background: radial-gradient(ellipse, rgba(139,92,246,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-inner { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+    .cta-title {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 900; letter-spacing: -0.04em; margin-bottom: 20px;
+    }
+    .cta-sub {
+      font-size: 18px; color: var(--text-dim); line-height: 1.7; margin-bottom: 48px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 20px;
+    }
+    .footer-logo {
+      font-size: 16px; font-weight: 800;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-link {
+      font-size: 13px; color: var(--text-dim);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .footer-link:hover { color: var(--text); }
+    .footer-copy { font-size: 12px; color: var(--text-dimmer); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Radar CSS animations */
+    @keyframes radar-ring-pulse {
+      0%,100% { opacity: 0.25; }
+      50% { opacity: 0.55; }
+    }
+    @keyframes radar-sweep-rot {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .radar-ring-anim { animation: radar-ring-pulse 3s ease-in-out infinite; }
+    .radar-ring-anim:nth-child(2) { animation-delay: 0.6s; }
+    .radar-ring-anim:nth-child(3) { animation-delay: 1.2s; }
+    .radar-sweep-anim {
+      transform-origin: center;
+      transform-box: fill-box;
+      animation: radar-sweep-rot 4s linear infinite;
+    }
+    .mini-sweep-anim {
+      transform-origin: center;
+      transform-box: fill-box;
+      animation: radar-sweep-rot 3s linear infinite;
+    }
+
+    @keyframes peer-blink {
+      0%,100% { opacity: 1; r: 5; }
+      50% { opacity: 0.6; r: 4; }
+    }
+    @keyframes peer-ping {
+      0% { r: 5; opacity: 0.7; }
+      100% { r: 14; opacity: 0; }
+    }
+    .peer-main { animation: peer-blink 2s ease-in-out infinite; }
+    .peer-ping-ring { animation: peer-ping 2s ease-out infinite; }
+
+    /* GSAP targets */
+    .reveal-up { opacity: 0; transform: translateY(40px); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .showcase-inner {
+        grid-template-columns: 1fr; text-align: center;
+        gap: 20px; padding: 0 20px;
+        width: 100%;
+      }
+      .showcase-text { width: 100%; }
+      .showcase-devices {
+        width: 100%; margin-top: 0;
+        justify-content: center; min-height: 280px;
+        perspective: none;
+      }
+      /* Kill 3D rotation on mobile — causes content to appear shifted */
+      .monitor-wrap { transform: none !important; transition: none !important; }
+      .showcase-chapter { text-align: center; }
+      .chapter-pills { justify-content: center; }
+      .modes-grid { grid-template-columns: 1fr; }
+      nav { padding: 0 20px; }
+      .nav-link { display: none; }
+      #showcase-wrapper { height: 380vh; }
+    }
+    @media (max-width: 640px) {
+      #showcase-wrapper { height: 300vh; }
+      .monitor-frame { width: 270px; }
+      .phone-wrap { right: -20px; bottom: 0; }
+      footer { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 440px) {
+      #showcase-wrapper { height: 260vh; }
+      .phone-wrap { display: none; }
+      .monitor-frame { width: min(300px, 92vw); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- PARTICLES CANVAS -->
+<canvas id="particles-canvas"></canvas>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="8" fill="url(#logoGrad)"/>
+      <path d="M8 14L13 9V12H20V16H13V19L8 14Z" fill="white"/>
+      <defs>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="28" y2="28">
+          <stop stop-color="#8b5cf6"/>
+          <stop offset="1" stop-color="#3b82f6"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    Giga-Share
+  </a>
+  <div class="nav-actions">
+    <a href="#features-section" class="nav-link">Funktionen</a>
+    <a href="#how-section" class="nav-link">So funktioniert's</a>
+    <a href="https://github.com/YOUR_USERNAME/Giga-Share" target="_blank" class="nav-link">GitHub</a>
+    <a href="#" class="nav-cta" id="nav-dl-btn">Herunterladen</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section id="hero">
+  <div class="hero-glow-1"></div>
+  <div class="hero-glow-2"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      LAN + Weltweites P2P · Keine Cloud erforderlich
+    </div>
+
+    <h1 class="hero-title">Teilen mit<br><span>Giga-Speed</span></h1>
+    <p class="hero-sub">
+      Dateien zwischen <strong>jedem Gerät, überall</strong> senden — lokal über WLAN oder weltweit via verschlüsseltem P2P.
+      Keine Cloud. Keine Konten. Keine Dateigrößenbeschränkung.
+    </p>
+
+    <div class="download-area">
+      <div class="primary-btns" id="primary-btns">
+        <!-- Injected by JS -->
+      </div>
+
+      <button class="platforms-toggle" id="platforms-toggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        Andere Plattformen
+        <span class="arrow">▾</span>
+      </button>
+
+      <div class="platforms-dropdown" id="platforms-dropdown">
+        <div class="platform-item" onclick="dl('windows-setup')">
+          <div class="platform-icon" style="background:rgba(59,130,246,0.15);">🪟</div>
+          <div class="platform-info">
+            <div class="platform-name">Windows</div>
+            <div class="platform-desc">Windows 10/11 · x64</div>
+          </div>
+          <div class="platform-btns">
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('windows-setup')">Setup</a>
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('windows-portable')">Portabel</a>
+          </div>
+        </div>
+        <div class="platform-item" onclick="dl('android')">
+          <div class="platform-icon" style="background:rgba(16,185,129,0.15);">🤖</div>
+          <div class="platform-info">
+            <div class="platform-name">Android</div>
+            <div class="platform-desc">Android 8.0+ · APK Sideload</div>
+          </div>
+          <div class="platform-btns">
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('android')">APK</a>
+          </div>
+        </div>
+        <div class="platform-item" onclick="dl('linux-appimage')">
+          <div class="platform-icon" style="background:rgba(251,191,36,0.15);">🐧</div>
+          <div class="platform-info">
+            <div class="platform-name">Linux</div>
+            <div class="platform-desc">AppImage (portabel) · .deb (Ubuntu/Debian)</div>
+          </div>
+          <div class="platform-btns">
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('linux-appimage')">AppImage</a>
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('linux-deb')">.deb</a>
+          </div>
+        </div>
+        <div class="platform-item" onclick="dl('macos')">
+          <div class="platform-icon" style="background:rgba(241,245,249,0.08);">🍎</div>
+          <div class="platform-info">
+            <div class="platform-name">macOS</div>
+            <div class="platform-desc">macOS 12+ · Universal (Intel + Apple Silicon)</div>
+          </div>
+          <div class="platform-btns">
+            <a class="platform-btn-sm" href="#" onclick="event.stopPropagation();dl('macos')">DMG</a>
+          </div>
+        </div>
+      </div>
+
+      <p class="hero-note" id="hero-note"></p>
+    </div>
+  </div>
+
+  <div class="scroll-indicator">
+    <span>Scrollen</span>
+    <div class="scroll-mouse"></div>
+  </div>
+</section>
+
+<!-- ── SHOWCASE PINNED ── -->
+<div id="showcase-wrapper">
+  <div id="showcase-sticky">
+    <div class="showcase-inner">
+
+      <!-- TEXT COLUMN -->
+      <div class="showcase-text">
+        <div class="showcase-chapter" id="chap-0">
+          <div class="chapter-step">⚡ LAN-Modus</div>
+          <h2 class="chapter-title">Sofortige Erkennung<br>im Netzwerk</h2>
+          <p class="chapter-body">Geräte erscheinen automatisch auf dem Radar. Kein Setup, kein Pairing. App öffnen – und sofort sehen, wer im WLAN ist.</p>
+          <div class="chapter-pills">
+            <span class="pill"><span class="pill-dot" style="background:#8b5cf6"></span>UDP-Broadcast</span>
+            <span class="pill"><span class="pill-dot" style="background:#3b82f6"></span>Nullkonfiguration</span>
+            <span class="pill"><span class="pill-dot" style="background:#10b981"></span>Auto-Refresh</span>
+          </div>
+        </div>
+
+        <div class="showcase-chapter" id="chap-1">
+          <div class="chapter-step">🚀 Übertragung</div>
+          <h2 class="chapter-title">Blitzschnell.<br>Vollständige Wiederaufnahme.</h2>
+          <p class="chapter-body">Dateien streamen direkt über TCP mit voller LAN-Geschwindigkeit. Verbindung getrennt? Genau dort weitermachen, wo aufgehört wurde.</p>
+          <div class="chapter-pills">
+            <span class="pill"><span class="pill-dot" style="background:#8b5cf6"></span>Geschwindigkeitslimit</span>
+            <span class="pill"><span class="pill-dot" style="background:#3b82f6"></span>Wiederaufnahme</span>
+            <span class="pill"><span class="pill-dot" style="background:#06b6d4"></span>Gleichzeitige Übertragungen</span>
+          </div>
+        </div>
+
+        <div class="showcase-chapter" id="chap-2">
+          <div class="chapter-step">🌐 Online-Modus</div>
+          <h2 class="chapter-title">Weltweit senden.<br>Privat bleiben.</h2>
+          <p class="chapter-body">Freunde einmalig via QR-Code oder Freundescode hinzufügen. Giga-Share regelt NAT-Traversal automatisch – kein Port-Forwarding nötig.</p>
+          <div class="chapter-pills">
+            <span class="pill"><span class="pill-dot" style="background:#8b5cf6"></span>iroh QUIC</span>
+            <span class="pill"><span class="pill-dot" style="background:#10b981"></span>E2E-Verschlüsselt</span>
+            <span class="pill"><span class="pill-dot" style="background:#f59e0b"></span>NAT-Traversal</span>
+          </div>
+        </div>
+
+        <div class="showcase-chapter" id="chap-3">
+          <div class="chapter-step">📱 Plattformübergreifend</div>
+          <h2 class="chapter-title">Jedes Gerät.<br>Eine App.</h2>
+          <p class="chapter-body">Windows-Desktop zum Android-Handy, PC zum MacBook. Das Radar zeigt jeden Peer mit betriebssystemspezifischen Icons.</p>
+          <div class="chapter-pills">
+            <span class="pill">Windows</span>
+            <span class="pill">Android</span>
+            <span class="pill">Linux</span>
+            <span class="pill">macOS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEVICES COLUMN -->
+      <div class="showcase-devices" id="showcase-devices">
+
+        <!-- Monitor -->
+        <div class="monitor-wrap" id="monitor-wrap">
+          <div class="monitor-frame">
+            <div class="monitor-topbar">
+              <div class="monitor-dot" style="background:#ff5f57"></div>
+              <div class="monitor-dot" style="background:#febc2e"></div>
+              <div class="monitor-dot" style="background:#28c840"></div>
+            </div>
+            <div class="monitor-screen-area" id="monitor-screen">
+              <div class="mini-app-header">
+                <span class="mini-logo">⚡ Giga-Share</span>
+                <span class="mini-mode-badge" id="mini-mode">LAN</span>
+              </div>
+              <!-- Mini radar -->
+              <div class="mini-radar-container" id="mini-radar-container">
+                <svg class="mini-radar-svg" viewBox="0 0 140 140">
+                  <defs>
+                    <radialGradient id="miniSweepGrad" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.7"/>
+                      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+                    </radialGradient>
+                    <filter id="miniGlow">
+                      <feGaussianBlur stdDeviation="2" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                  </defs>
+                  <!-- BG -->
+                  <circle cx="70" cy="70" r="68" fill="#09090f" stroke="rgba(139,92,246,0.15)" stroke-width="1"/>
+                  <!-- Rings -->
+                  <circle cx="70" cy="70" r="22" fill="none" stroke="rgba(139,92,246,0.2)" stroke-width="0.8" class="radar-ring-anim"/>
+                  <circle cx="70" cy="70" r="44" fill="none" stroke="rgba(139,92,246,0.2)" stroke-width="0.8" class="radar-ring-anim"/>
+                  <circle cx="70" cy="70" r="62" fill="none" stroke="rgba(139,92,246,0.15)" stroke-width="0.8" class="radar-ring-anim"/>
+                  <!-- Crosshairs -->
+                  <line x1="70" y1="4" x2="70" y2="136" stroke="rgba(139,92,246,0.12)" stroke-width="0.5" stroke-dasharray="3,3"/>
+                  <line x1="4" y1="70" x2="136" y2="70" stroke="rgba(139,92,246,0.12)" stroke-width="0.5" stroke-dasharray="3,3"/>
+                  <!-- Sweep -->
+                  <g class="mini-sweep-anim" transform-origin="70 70">
+                    <path d="M70,70 L70,8 A62,62 0 0,1 132,70 Z" fill="url(#miniSweepGrad)" opacity="0.6"/>
+                    <line x1="70" y1="70" x2="70" y2="8" stroke="#8b5cf6" stroke-width="1" opacity="0.9"/>
+                  </g>
+                  <!-- Peer dots -->
+                  <g id="mini-peer-windows" filter="url(#miniGlow)">
+                    <circle class="peer-ping-ring" cx="105" cy="38" r="5" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.5"/>
+                    <circle class="peer-main" cx="105" cy="38" r="5" fill="#3b82f6"/>
+                    <text x="105" y="28" text-anchor="middle" fill="rgba(241,245,249,0.8)" font-size="6" font-weight="600" font-family="Inter,sans-serif">PC</text>
+                  </g>
+                  <g id="mini-peer-android" filter="url(#miniGlow)">
+                    <circle class="peer-ping-ring" cx="40" cy="95" r="5" fill="none" stroke="#10b981" stroke-width="1" opacity="0.5" style="animation-delay:1s"/>
+                    <circle class="peer-main" cx="40" cy="95" r="5" fill="#10b981" style="animation-delay:0.5s"/>
+                    <text x="40" y="112" text-anchor="middle" fill="rgba(241,245,249,0.8)" font-size="6" font-weight="600" font-family="Inter,sans-serif">Phone</text>
+                  </g>
+                  <g id="mini-peer-mac">
+                    <circle class="peer-ping-ring" cx="95" cy="105" r="5" fill="none" stroke="#a1a1aa" stroke-width="1" opacity="0.5" style="animation-delay:1.5s"/>
+                    <circle class="peer-main" cx="95" cy="105" r="5" fill="#a1a1aa" style="animation-delay:1s"/>
+                    <text x="95" y="122" text-anchor="middle" fill="rgba(241,245,249,0.8)" font-size="6" font-weight="600" font-family="Inter,sans-serif">Mac</text>
+                  </g>
+                  <!-- Center dot -->
+                  <circle cx="70" cy="70" r="3" fill="var(--purple)"/>
+                </svg>
+              </div>
+              <!-- Mini transfer bar -->
+              <div class="mini-transfer" id="mini-transfer-panel">
+                <div class="mini-transfer-header">
+                  <span id="mini-file-name">photo_2024.jpg</span>
+                  <span id="mini-speed">128 MB/s</span>
+                </div>
+                <div class="mini-progress-bar">
+                  <div class="mini-progress-fill" id="mini-fill" style="width:68%"></div>
+                </div>
+                <div class="mini-stats-row">
+                  <div class="mini-stat">
+                    <div class="mini-stat-val" id="mini-pct">68%</div>
+                    <div class="mini-stat-lbl">Progress</div>
+                  </div>
+                  <div class="mini-stat">
+                    <div class="mini-stat-val">3.2s</div>
+                    <div class="mini-stat-lbl">ETA</div>
+                  </div>
+                  <div class="mini-stat">
+                    <div class="mini-stat-val">4.1 GB</div>
+                    <div class="mini-stat-lbl">Total</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="monitor-stand"></div>
+          <div class="monitor-base"></div>
+        </div>
+
+        <!-- Phone -->
+        <div class="phone-wrap" id="phone-wrap">
+          <div class="phone-frame">
+            <div class="phone-notch"></div>
+            <div class="phone-screen-area">
+              <div class="mini-phone-header">⚡ Giga-Share</div>
+              <div class="mini-phone-radar">
+                <svg class="mini-phone-radar-svg" viewBox="0 0 100 90">
+                  <defs>
+                    <radialGradient id="phoneSweepGrad" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.7"/>
+                      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+                    </radialGradient>
+                  </defs>
+                  <circle cx="50" cy="45" r="43" fill="#09090f" stroke="rgba(139,92,246,0.15)" stroke-width="0.8"/>
+                  <circle cx="50" cy="45" r="15" fill="none" stroke="rgba(139,92,246,0.2)" stroke-width="0.6" class="radar-ring-anim"/>
+                  <circle cx="50" cy="45" r="30" fill="none" stroke="rgba(139,92,246,0.2)" stroke-width="0.6" class="radar-ring-anim"/>
+                  <g class="mini-sweep-anim" style="transform-origin:50px 45px; animation-duration:3.5s;">
+                    <path d="M50,45 L50,4 A41,41 0 0,1 91,45 Z" fill="url(#phoneSweepGrad)" opacity="0.6"/>
+                    <line x1="50" y1="45" x2="50" y2="4" stroke="#8b5cf6" stroke-width="0.8" opacity="0.9"/>
+                  </g>
+                  <circle cx="72" cy="22" r="4" fill="#3b82f6"/>
+                  <circle cx="28" cy="62" r="4" fill="#10b981"/>
+                  <circle cx="50" cy="45" r="2.5" fill="#8b5cf6"/>
+                </svg>
+              </div>
+              <div class="mini-share-sheet">
+                <div class="mini-share-title">📤 Sharing via LAN</div>
+                <div class="mini-share-file">video_clip.mp4 · 847 MB</div>
+              </div>
+              <div style="margin:4px 6px;">
+                <div style="height:2px;background:rgba(255,255,255,0.06);border-radius:1px;overflow:hidden;">
+                  <div id="phone-fill" style="height:100%;width:45%;background:linear-gradient(90deg,#8b5cf6,#3b82f6);border-radius:1px;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;">
+                  <span style="font-size:6px;color:rgba(241,245,249,0.4)">45%</span>
+                  <span style="font-size:6px;color:rgba(241,245,249,0.4)">67 MB/s</span>
+                </div>
+              </div>
+            </div>
+            <div class="phone-home"></div>
+          </div>
+        </div>
+
+        <!-- Scroll dots -->
+        <div class="showcase-dots" id="showcase-dots">
+          <div class="showcase-dot active" onclick="goChapter(0)"></div>
+          <div class="showcase-dot" onclick="goChapter(1)"></div>
+          <div class="showcase-dot" onclick="goChapter(2)"></div>
+          <div class="showcase-dot" onclick="goChapter(3)"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── RADAR SECTION ── -->
+<section id="radar-section">
+  <div class="reveal-up">
+    <span class="section-label">Erkennung</span>
+    <h2 class="section-title" style="text-align:center">Dein Netzwerk,<br><span class="grad-text">visualisiert</span></h2>
+    <p class="section-sub" style="margin:0 auto;text-align:center">Geräte erscheinen auf dem Radar, sobald sie Giga-Share öffnen. Betriebssystem-Icons zeigen genau, womit du dich verbindest.</p>
+  </div>
+
+  <div class="big-radar-wrap reveal-up">
+    <div class="big-radar-glow"></div>
+    <svg class="big-radar-svg" viewBox="0 0 400 400" id="big-radar-svg">
+      <defs>
+        <radialGradient id="bigSweepGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#0d0d1a"/>
+          <stop offset="100%" stop-color="#050508"/>
+        </radialGradient>
+        <filter id="bigGlow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="peerGlow">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- Background circle -->
+      <circle cx="200" cy="200" r="190" fill="url(#bgGrad)" stroke="rgba(139,92,246,0.2)" stroke-width="1.5"/>
+
+      <!-- Grid rings -->
+      <circle cx="200" cy="200" r="60"  fill="none" stroke="rgba(139,92,246,0.15)" stroke-width="1" class="radar-ring-anim"/>
+      <circle cx="200" cy="200" r="110" fill="none" stroke="rgba(139,92,246,0.15)" stroke-width="1" class="radar-ring-anim"/>
+      <circle cx="200" cy="200" r="160" fill="none" stroke="rgba(139,92,246,0.12)" stroke-width="1" class="radar-ring-anim"/>
+
+      <!-- Crosshairs -->
+      <line x1="200" y1="10" x2="200" y2="390" stroke="rgba(139,92,246,0.1)" stroke-width="1" stroke-dasharray="5,5"/>
+      <line x1="10" y1="200" x2="390" y2="200" stroke="rgba(139,92,246,0.1)" stroke-width="1" stroke-dasharray="5,5"/>
+      <line x1="55"  y1="55"  x2="345" y2="345" stroke="rgba(139,92,246,0.07)" stroke-width="0.8" stroke-dasharray="4,6"/>
+      <line x1="345" y1="55"  x2="55"  y2="345" stroke="rgba(139,92,246,0.07)" stroke-width="0.8" stroke-dasharray="4,6"/>
+
+      <!-- Distance rings labels -->
+      <text x="205" y="142" fill="rgba(139,92,246,0.4)" font-size="9" font-family="Inter,sans-serif">LAN</text>
+
+      <!-- Sweep -->
+      <g class="radar-sweep-anim" transform-origin="200 200" style="animation-duration:5s;">
+        <path d="M200,200 L200,12 A188,188 0 0,1 386,180 Z" fill="url(#bigSweepGrad)" opacity="0.5"/>
+        <line x1="200" y1="200" x2="200" y2="12" stroke="#8b5cf6" stroke-width="1.5" opacity="0.9" filter="url(#bigGlow)"/>
+      </g>
+
+      <!-- Peer: Windows PC -->
+      <g class="peer-label-group" id="peer-win" filter="url(#peerGlow)">
+        <circle cx="300" cy="110" r="12" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.4" class="peer-ping-ring" style="animation-delay:0s"/>
+        <circle cx="300" cy="110" r="9" fill="rgba(59,130,246,0.2)" stroke="#3b82f6" stroke-width="1.5" class="peer-main"/>
+        <!-- Windows icon (4 squares) -->
+        <rect x="295.5" y="105.5" width="4" height="4" fill="#3b82f6" rx="0.5"/>
+        <rect x="300.5" y="105.5" width="4" height="4" fill="#3b82f6" rx="0.5"/>
+        <rect x="295.5" y="110.5" width="4" height="4" fill="#3b82f6" rx="0.5"/>
+        <rect x="300.5" y="110.5" width="4" height="4" fill="#3b82f6" rx="0.5"/>
+        <!-- Label -->
+        <rect x="272" y="91" width="58" height="13" rx="4" fill="rgba(9,9,15,0.9)" stroke="rgba(59,130,246,0.3)" stroke-width="0.8"/>
+        <text x="301" y="100.5" text-anchor="middle" fill="rgba(241,245,249,0.9)" font-size="9" font-weight="600" font-family="Inter,sans-serif">Gaming PC</text>
+      </g>
+
+      <!-- Peer: Android Phone -->
+      <g class="peer-label-group" id="peer-android" filter="url(#peerGlow)">
+        <circle cx="105" cy="260" r="12" fill="none" stroke="#10b981" stroke-width="1" opacity="0.4" class="peer-ping-ring" style="animation-delay:0.8s"/>
+        <circle cx="105" cy="260" r="9" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5" class="peer-main" style="animation-delay:0.5s"/>
+        <!-- Android icon -->
+        <ellipse cx="105" cy="258" rx="4" ry="5" fill="#10b981"/>
+        <line x1="101" y1="256" x2="99" y2="253" stroke="#10b981" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="109" y1="256" x2="111" y2="253" stroke="#10b981" stroke-width="1.2" stroke-linecap="round"/>
+        <!-- Label -->
+        <rect x="72" y="272" width="67" height="13" rx="4" fill="rgba(9,9,15,0.9)" stroke="rgba(16,185,129,0.3)" stroke-width="0.8"/>
+        <text x="105.5" y="281.5" text-anchor="middle" fill="rgba(241,245,249,0.9)" font-size="9" font-weight="600" font-family="Inter,sans-serif">Sarah's Phone</text>
+      </g>
+
+      <!-- Peer: MacBook -->
+      <g class="peer-label-group" id="peer-mac" filter="url(#peerGlow)">
+        <circle cx="310" cy="280" r="12" fill="none" stroke="#e2e8f0" stroke-width="1" opacity="0.4" class="peer-ping-ring" style="animation-delay:1.5s"/>
+        <circle cx="310" cy="280" r="9" fill="rgba(241,245,249,0.1)" stroke="#e2e8f0" stroke-width="1.5" class="peer-main" style="animation-delay:1s"/>
+        <!-- Apple icon (simplified) -->
+        <path d="M310,274 C313,274 315,276.5 315,279.5 C315,283 312,285.5 310,285.5 C308,285.5 305,283 305,279.5 C305,276.5 307,274 310,274 Z" fill="#e2e8f0"/>
+        <rect x="309" y="272" width="3" height="3" rx="1" fill="#09090f"/>
+        <!-- Label -->
+        <rect x="278" y="266" width="64" height="13" rx="4" fill="rgba(9,9,15,0.9)" stroke="rgba(241,245,249,0.2)" stroke-width="0.8"/>
+        <text x="310" y="275.5" text-anchor="middle" fill="rgba(241,245,249,0.9)" font-size="9" font-weight="600" font-family="Inter,sans-serif">MacBook Pro</text>
+      </g>
+
+      <!-- Peer: Linux -->
+      <g class="peer-label-group" id="peer-linux" filter="url(#peerGlow)">
+        <circle cx="155" cy="95" r="12" fill="none" stroke="#fbbf24" stroke-width="1" opacity="0.3" class="peer-ping-ring" style="animation-delay:2.2s"/>
+        <circle cx="155" cy="95" r="9" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" stroke-width="1.5" class="peer-main" style="animation-delay:1.8s"/>
+        <!-- Tux simplified -->
+        <ellipse cx="155" cy="94" rx="4" ry="5" fill="#fbbf24"/>
+        <circle cx="153" cy="92" r="1" fill="#09090f"/>
+        <circle cx="157" cy="92" r="1" fill="#09090f"/>
+        <!-- Label -->
+        <rect x="124" y="78" width="63" height="13" rx="4" fill="rgba(9,9,15,0.9)" stroke="rgba(251,191,36,0.3)" stroke-width="0.8"/>
+        <text x="155.5" y="87.5" text-anchor="middle" fill="rgba(241,245,249,0.9)" font-size="9" font-weight="600" font-family="Inter,sans-serif">Dev Server</text>
+      </g>
+
+      <!-- Center (you) -->
+      <circle cx="200" cy="200" r="8" fill="rgba(139,92,246,0.25)" stroke="#8b5cf6" stroke-width="2"/>
+      <circle cx="200" cy="200" r="3" fill="#8b5cf6"/>
+      <rect x="175" y="210" width="50" height="13" rx="4" fill="rgba(9,9,15,0.9)" stroke="rgba(139,92,246,0.3)" stroke-width="0.8"/>
+      <text x="200" y="219.5" text-anchor="middle" fill="rgba(139,92,246,0.9)" font-size="9" font-weight="700" font-family="Inter,sans-serif">You (This device)</text>
+    </svg>
+  </div>
+
+  <p class="section-sub reveal-up" style="margin:28px auto 0;text-align:center;max-width:460px;">
+    Gerät antippen zum Senden. Dateien draufziehen. Es funktioniert einfach.
+  </p>
+</section>
+
+<!-- ── FEATURES ── -->
+<section id="features-section">
+  <div class="features-header">
+    <span class="section-label">Alles inklusive</span>
+    <h2 class="section-title">Für <span class="grad-text">echtes Teilen</span> gebaut</h2>
+    <p class="section-sub" style="margin:0 auto">Alles was du brauchst. Nichts was du nicht brauchst.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(139,92,246,0.15)">⚡</div>
+      <h3 class="feature-title">Gleichzeitige Übertragungen</h3>
+      <p class="feature-desc">Gleichzeitig an mehrere Geräte senden. Jede Übertragung einzeln verfolgen – mit Echtzeit-Geschwindigkeitsgraph und ETA pro Datei.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(59,130,246,0.15)">🔒</div>
+      <h3 class="feature-title">E2E-Verschlüsselt</h3>
+      <p class="feature-desc">Alle Online-Übertragungen nutzen TLS 1.3 via QUIC. Deine Dateien berühren niemals einen Cloud-Server. Keine Daten, keine Logs.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(16,185,129,0.15)">↩️</div>
+      <h3 class="feature-title">Übertragungswiederaufnahme</h3>
+      <p class="feature-desc">Verbindung bei 3,9 GB von 4 GB getrennt? Genau dort weitermachen, wo aufgehört wurde. Teildateien als .part gespeichert bis Abschluss.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(6,182,212,0.15)">📱</div>
+      <h3 class="feature-title">Android-Freigabe</h3>
+      <p class="feature-desc">„Mit Giga-Share teilen" erscheint im nativen Android-Freigabemenü. Fotos, Videos und Dokumente in zwei Tipps senden.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(251,191,36,0.15)">📂</div>
+      <h3 class="feature-title">Windows „Senden an"</h3>
+      <p class="feature-desc">Rechtsklick auf eine Datei → Senden an → Giga-Share. App öffnet sich und zeigt die Geräteauswahl. Maximaler Komfort.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(244,63,94,0.15)">🎯</div>
+      <h3 class="feature-title">Drag &amp; Drop</h3>
+      <p class="feature-desc">Dateien direkt auf einen Peer im Radar oder auf einen Freund in der Liste ziehen. Übertragung startet sofort, keine Dialoge nötig.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(139,92,246,0.15)">📷</div>
+      <h3 class="feature-title">QR-Code-Pairing</h3>
+      <p class="feature-desc">Freunde durch Scannen eines QR-Codes hinzufügen. Kein Eintippen von 64-Zeichen-Codes. Einfach scannen und loslegen.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(59,130,246,0.15)">🚦</div>
+      <h3 class="feature-title">Geschwindigkeitslimit</h3>
+      <p class="feature-desc">Separate Mbit/s-Limits für LAN und Online-Übertragungen setzen. Netzwerk verfügbar halten, während riesige Dateien geteilt werden.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(16,185,129,0.15)">📦</div>
+      <h3 class="feature-title">Portabler Modus</h3>
+      <p class="feature-desc">Auf Windows von einem USB-Stick ausführen. portable.marker neben die .exe legen – Konfiguration wird daneben gespeichert. Kein Setup nötig.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how-section">
+  <div class="how-inner">
+    <div class="how-header">
+      <span class="section-label">Protokoll</span>
+      <h2 class="section-title">Zwei Modi.<br><span class="grad-text">Eine App.</span></h2>
+      <p class="section-sub" style="margin:0 auto">LAN für maximale Geschwindigkeit im Netzwerk. Online für verschlüsseltes P2P überall auf der Welt.</p>
+    </div>
+
+    <div class="modes-grid">
+      <div class="mode-card" id="mode-lan">
+        <div class="mode-card-header">
+          <div class="mode-icon" style="background:rgba(59,130,246,0.15); font-size:26px">📡</div>
+          <div>
+            <div class="mode-title">LAN-Modus</div>
+            <div class="mode-subtitle">Gleiches WLAN · UDP + TCP</div>
+          </div>
+        </div>
+        <div class="mode-steps">
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(59,130,246,0.15);color:#3b82f6">1</div>
+            <div class="step-content">
+              <div class="step-title">Broadcast-Erkennung</div>
+              <div class="step-desc">Giga-Share sendet <code style="font-size:11px;background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px">GIGASHARE_V2:{name}|{type}|{port}|{os}</code> per UDP auf Port 52525 alle 3 Sekunden.</div>
+            </div>
+          </div>
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(59,130,246,0.15);color:#3b82f6">2</div>
+            <div class="step-content">
+              <div class="step-title">Peer-Auswahl</div>
+              <div class="step-desc">Geräte erscheinen mit OS-Icon und Name auf dem Radar. Peer antippen oder Dateien draufziehen.</div>
+            </div>
+          </div>
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(59,130,246,0.15);color:#3b82f6">3</div>
+            <div class="step-content">
+              <div class="step-title">TCP-Übertragung</div>
+              <div class="step-desc">Manifest wird zuerst gesendet (Dateiliste + Größen), Empfänger sendet ACK + Wiederaufnahme-Offsets, dann Rohdaten mit voller LAN-Geschwindigkeit.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mode-card" id="mode-online">
+        <div class="mode-card-header">
+          <div class="mode-icon" style="background:rgba(139,92,246,0.15); font-size:26px">🌐</div>
+          <div>
+            <div class="mode-title">Online-Modus</div>
+            <div class="mode-subtitle">Weltweit · QUIC + E2E</div>
+          </div>
+        </div>
+        <div class="mode-steps">
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(139,92,246,0.15);color:#8b5cf6">1</div>
+            <div class="step-content">
+              <div class="step-title">Freund hinzufügen</div>
+              <div class="step-desc">Freundescodes (Ed25519-öffentliche Schlüssel) austauschen oder QR-Code mit der Kamera scannen. Freundesliste bleibt dauerhaft gespeichert.</div>
+            </div>
+          </div>
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(139,92,246,0.15);color:#8b5cf6">2</div>
+            <div class="step-content">
+              <div class="step-title">NAT-Traversal</div>
+              <div class="step-desc">iroh behandelt STUN-Hole-Punching automatisch. Fällt auf DERP-Relay zurück wenn Direktverbindung fehlschlägt. Funktioniert hinter Firewalls.</div>
+            </div>
+          </div>
+          <div class="mode-step">
+            <div class="step-num" style="background:rgba(139,92,246,0.15);color:#8b5cf6">3</div>
+            <div class="step-content">
+              <div class="step-title">QUIC-Übertragung</div>
+              <div class="step-desc">Gleiches Manifest- + Wiederaufnahme-Protokoll über bidirektionale QUIC-Streams. TLS 1.3 Ende-zu-Ende verschlüsselt. Kein Server sieht je deine Dateien.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECURITY ── -->
+<section id="security-section">
+  <div class="security-inner">
+    <div class="security-shield reveal-up">
+      <svg viewBox="0 0 100 110" fill="none">
+        <path d="M50 5 L90 22 L90 55 C90 78 72 98 50 105 C28 98 10 78 10 55 L10 22 Z"
+              fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="2"/>
+        <path d="M50 15 L82 29 L82 55 C82 73 68 90 50 97 C32 90 18 73 18 55 L18 29 Z"
+              fill="rgba(16,185,129,0.05)"/>
+        <path d="M37 55 L46 64 L64 44" stroke="#10b981" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <span class="section-label reveal-up">Sicherheit</span>
+    <h2 class="section-title reveal-up">Zero-Knowledge.<br><span class="grad-text">Zero Trust erforderlich.</span></h2>
+    <p class="section-sub reveal-up" style="margin:0 auto;text-align:center;max-width:560px">
+      Giga-Share nutzt iroh's QUIC-Implementierung mit TLS 1.3. Jedes Byte wird verschlüsselt, bevor es dein Gerät verlässt. Kein Server. Kein Konto. Keine Möglichkeit, deine Dateien zu sehen.
+    </p>
+
+    <div class="stats-row">
+      <div class="stat-block reveal-up">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Cloud-Server berührt</div>
+      </div>
+      <div class="stat-block reveal-up">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Dateigrößenlimit</div>
+      </div>
+      <div class="stat-block reveal-up">
+        <div class="stat-num">TLS<br style="line-height:0.5"> <span style="font-size:0.5em">1.3</span></div>
+        <div class="stat-label">Verschlüsselungsstandard</div>
+      </div>
+      <div class="stat-block reveal-up">
+        <div class="stat-num">4</div>
+        <div class="stat-label">Unterstützte Plattformen</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section id="cta-section">
+  <div class="cta-glow"></div>
+  <div class="cta-inner">
+    <h2 class="cta-title reveal-up">Bereit,<br><span class="grad-text">schneller zu teilen?</span></h2>
+    <p class="cta-sub reveal-up">Kostenlos. Open Source. Immer.</p>
+    <div class="primary-btns reveal-up" id="cta-btns" style="justify-content:center"></div>
+    <p class="hero-note reveal-up" style="margin-top:16px" id="cta-note"></p>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <span class="footer-logo">⚡ Giga-Share</span>
+  <div class="footer-links">
+    <a href="https://github.com/YOUR_USERNAME/Giga-Share" target="_blank" class="footer-link">GitHub</a>
+    <a href="https://github.com/YOUR_USERNAME/Giga-Share/issues" target="_blank" class="footer-link">Bug melden</a>
+    <a href="https://github.com/YOUR_USERNAME/Giga-Share/issues" target="_blank" class="footer-link">Feature anfragen</a>
+    <a href="https://github.com/YOUR_USERNAME/Giga-Share/releases" target="_blank" class="footer-link">Veröffentlichungen</a>
+  </div>
+  <span class="footer-copy">Entwickelt mit Rust, React &amp; iroh · MIT-Lizenz</span>
+</footer>
+
+<script>
+  // ── CONFIG ── Update this before publishing!
+  const GITHUB_REPO = 'YOUR_USERNAME/Giga-Share';
+  const RELEASES = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
+
+  const DOWNLOAD_URLS = {
+    'windows-setup':    `${RELEASES}/Giga-Share-Setup.exe`,
+    'windows-portable': `${RELEASES}/Giga-Share-Portable.exe`,
+    'android':          `${RELEASES}/Giga-Share.apk`,
+    'linux-appimage':   `${RELEASES}/Giga-Share.AppImage`,
+    'linux-deb':        `${RELEASES}/Giga-Share.deb`,
+    'macos':            `${RELEASES}/Giga-Share.dmg`,
+  };
+
+  function dl(target) {
+    window.location.href = DOWNLOAD_URLS[target];
+  }
+
+  // ── OS DETECTION ──
+  function detectOS() {
+    const ua = navigator.userAgent.toLowerCase();
+    const platform = (navigator.platform || '').toLowerCase();
+    if (/android/.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+    if (/win/.test(platform) || /windows/.test(ua)) return 'windows';
+    if (/mac/.test(platform) || /macintosh/.test(ua)) return 'macos';
+    if (/linux/.test(platform) || /linux/.test(ua)) return 'linux';
+    return 'windows';
+  }
+
+  function renderDownloadButtons(containerId, noteId) {
+    const os = detectOS();
+    const container = document.getElementById(containerId);
+    const note = document.getElementById(noteId);
+    if (!container) return;
+
+    if (os === 'windows') {
+      container.innerHTML = `
+        <a href="${DOWNLOAD_URLS['windows-setup']}" class="dl-btn dl-btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          Für Windows herunterladen
+        </a>
+        <a href="${DOWNLOAD_URLS['windows-portable']}" class="dl-btn dl-btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Portabel .exe
+        </a>`;
+      if (note) note.textContent = 'Windows 10/11 · x64 · Auch verfügbar: MSI-Installer auf der Releases-Seite';
+
+    } else if (os === 'android') {
+      container.innerHTML = `
+        <a href="${DOWNLOAD_URLS['android']}" class="dl-btn dl-btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.341C17.078 15.341 16.713 14.989 16.713 14.558S17.078 13.774 17.523 13.774C17.968 13.774 18.333 14.126 18.333 14.558S17.968 15.341 17.523 15.341M6.477 15.341C6.032 15.341 5.667 14.989 5.667 14.558S6.032 13.774 6.477 13.774C6.922 13.774 7.287 14.126 7.287 14.558S6.922 15.341 6.477 15.341M17.754 9.75L19.22 7.25C19.305 7.107 19.252 6.926 19.104 6.843C18.957 6.76 18.772 6.812 18.687 6.955L17.204 9.482C15.84 8.875 14.233 8.5 12 8.5C9.767 8.5 8.16 8.875 6.796 9.482L5.313 6.955C5.228 6.812 5.043 6.76 4.896 6.843C4.748 6.926 4.695 7.107 4.78 7.25L6.246 9.75C3.527 11.23 1.845 13.85 1.5 17H22.5C22.155 13.85 20.473 11.23 17.754 9.75Z"/></svg>
+          APK herunterladen
+        </a>`;
+      if (note) note.textContent = 'Android 8.0+ · „Unbekannte Apps installieren" in Einstellungen aktivieren · APK v2+v3 signiert';
+
+    } else if (os === 'macos') {
+      container.innerHTML = `
+        <a href="${DOWNLOAD_URLS['macos']}" class="dl-btn dl-btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          Für macOS herunterladen
+        </a>`;
+      if (note) note.textContent = 'macOS 12+ · Universal-Build (Intel + Apple Silicon) · Evtl. in Systemeinstellungen freigeben';
+
+    } else if (os === 'linux') {
+      container.innerHTML = `
+        <a href="${DOWNLOAD_URLS['linux-appimage']}" class="dl-btn dl-btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.581 19.049c-.55-.446-.336-1.431-.907-1.917.553-3.365-.997-6.331-2.845-8.232C15.098 7.043 13.532 6 12.008 6h-.016c-1.524 0-3.09 1.043-4.821 2.9-1.848 1.901-3.398 4.867-2.845 8.232-.571.486-.357 1.471-.907 1.917-.553.448-1.mentioned 1.151-.194 1.297.574.101 2.267-1.464 2.267-1.464 0 .587.287 1.438.804 2.034.508.588 1.227.919 2.138.919.72 0 1.527-.273 2.046-.819l.524-.557.524.557c.519.546 1.326.819 2.046.819.911 0 1.63-.331 2.138-.919.517-.596.804-1.447.804-2.034 0 0 1.693 1.565 2.267 1.464.96-.146.359-.849-.193-1.297z"/></svg>
+          AppImage (Portabel)
+        </a>
+        <a href="${DOWNLOAD_URLS['linux-deb']}" class="dl-btn dl-btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          .deb-Paket
+        </a>`;
+      if (note) note.textContent = 'Linux x86_64 · AppImage läuft auf allen Distros · .deb für Ubuntu/Debian';
+
+    } else if (os === 'ios') {
+      container.innerHTML = `
+        <div class="dl-btn dl-btn-secondary" style="cursor:default;opacity:0.6">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          iOS noch nicht verfügbar
+        </div>`;
+      if (note) note.textContent = 'iOS-Support ist geplant. Nutze in der Zwischenzeit die Desktop-Version.';
+    }
+
+    // Also update nav CTA
+    const navBtn = document.getElementById('nav-dl-btn');
+    if (navBtn) {
+      const href = os === 'android' ? DOWNLOAD_URLS['android'] :
+                   os === 'macos'   ? DOWNLOAD_URLS['macos'] :
+                   os === 'linux'   ? DOWNLOAD_URLS['linux-appimage'] :
+                   DOWNLOAD_URLS['windows-setup'];
+      navBtn.href = href;
+    }
+  }
+
+  // ── PARTICLES ──
+  (function initParticles() {
+    const canvas = document.getElementById('particles-canvas');
+    const ctx = canvas.getContext('2d');
+    let w, h, particles;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+
+    function createParticle() {
+      return {
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: Math.random() * 1.5 + 0.5,
+        alpha: Math.random() * 0.4 + 0.1,
+      };
+    }
+
+    function init() {
+      resize();
+      particles = Array.from({ length: 80 }, createParticle);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(139,92,246,${p.alpha})`;
+        ctx.fill();
+      });
+
+      // Draw connections
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < 100) {
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = `rgba(139,92,246,${0.06 * (1 - dist/100)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    init(); draw();
+  })();
+
+  // ── NAV SCROLL EFFECT ──
+  window.addEventListener('scroll', () => {
+    document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // ── PLATFORMS DROPDOWN ──
+  const toggleBtn = document.getElementById('platforms-toggle');
+  const dropdown = document.getElementById('platforms-dropdown');
+  toggleBtn.addEventListener('click', () => {
+    toggleBtn.classList.toggle('open');
+    dropdown.classList.toggle('open');
+  });
+
+  // ── SHOWCASE PINNED SCROLL ──
+  let currentChapter = 0;
+  const chapters = ['chap-0','chap-1','chap-2','chap-3'];
+
+  function goChapter(idx) {
+    if (idx === currentChapter) return;
+    const old = document.getElementById(chapters[currentChapter]);
+    const next = document.getElementById(chapters[idx]);
+    const goDown = idx > currentChapter;
+
+    // Exit old via CSS class (transition handles easing)
+    old.classList.remove('active');
+    old.classList.add(goDown ? 'exit-up' : 'exit-down');
+    old.style.position = 'absolute';
+    old.style.pointerEvents = 'none';
+
+    // Enter new — force reflow so transition fires from start state
+    next.style.position = 'relative';
+    next.classList.remove('exit-up', 'exit-down');
+    void next.offsetWidth; // reflow
+    next.classList.add('active');
+
+    // Cleanup exit class after transition done
+    setTimeout(() => old.classList.remove('exit-up', 'exit-down'), 620);
+
+    document.querySelectorAll('.showcase-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === idx);
+    });
+
+    updateDeviceForChapter(idx);
+    currentChapter = idx;
+  }
+
+  function updateDeviceForChapter(idx) {
+    const modeLabel = document.getElementById('mini-mode');
+    const phoneWrap = document.getElementById('phone-wrap');
+    const monitorWrap = document.getElementById('monitor-wrap');
+    const miniTransfer = document.getElementById('mini-transfer-panel');
+    const miniRadarContainer = document.getElementById('mini-radar-container');
+
+    const cfgs = [
+      { mode: 'LAN',    phone: 0.3, phoneScale: 0.88, transfer: 0.4, radar: 1   },
+      { mode: 'LAN',    phone: 0.55, phoneScale: 0.92, transfer: 1,   radar: 0.5 },
+      { mode: 'Online', phone: 0.9, phoneScale: 1,    transfer: 0.5, radar: 0.8 },
+      { mode: 'LAN',    phone: 1,   phoneScale: 1.04, transfer: 0.4, radar: 1   },
+    ];
+    const c = cfgs[idx] || cfgs[0];
+    modeLabel.textContent = c.mode;
+    const t = 'opacity 0.5s ease, transform 0.5s ease';
+    phoneWrap.style.transition = t;
+    phoneWrap.style.opacity = c.phone;
+    phoneWrap.style.transform = `scale(${c.phoneScale})`;
+    miniTransfer.style.transition = 'opacity 0.4s ease';
+    miniTransfer.style.opacity = c.transfer;
+    miniRadarContainer.style.transition = 'opacity 0.4s ease';
+    miniRadarContainer.style.opacity = c.radar;
+    if (idx === 1) animateProgress();
+  }
+
+  // Animate mini progress bar
+  let progressInterval;
+  function animateProgress() {
+    clearInterval(progressInterval);
+    let pct = 0;
+    const fill = document.getElementById('mini-fill');
+    const pctLabel = document.getElementById('mini-pct');
+    const phoneFill = document.getElementById('phone-fill');
+    progressInterval = setInterval(() => {
+      pct = (pct + 0.8) % 100;
+      fill.style.width = pct + '%';
+      phoneFill.style.width = (pct * 0.8 + 10) + '%';
+      pctLabel.textContent = Math.floor(pct) + '%';
+    }, 50);
+  }
+
+  // Init GSAP (used only for non-showcase animations)
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Initialize chapters — CSS classes drive transitions, no GSAP
+  const chap0 = document.getElementById('chap-0');
+  chap0.classList.add('active');
+  chap0.style.position = 'relative';
+  chapters.slice(1).forEach(id => {
+    const el = document.getElementById(id);
+    el.style.top = '0'; el.style.left = '0'; el.style.right = '0';
+  });
+
+  // Single passive scroll listener drives showcase — no ScrollTrigger conflict
+  const chapBreaks = [0, 0.22, 0.55, 0.78];
+  const showcaseWrapper = document.getElementById('showcase-wrapper');
+  const monitorEl = document.getElementById('monitor-wrap');
+
+  function onShowcaseScroll() {
+    const rect = showcaseWrapper.getBoundingClientRect();
+    const scrolled = -rect.top;
+    const total = showcaseWrapper.offsetHeight - window.innerHeight;
+    if (total <= 0) return;
+    const prog = Math.max(0, Math.min(1, scrolled / total));
+
+    // Chapter switching — debounced by goChapter's own guard
+    let newCh = 0;
+    for (let i = chapBreaks.length - 1; i >= 0; i--) {
+      if (prog >= chapBreaks[i]) { newCh = i; break; }
+    }
+    if (newCh !== currentChapter) goChapter(newCh);
+
+    // 3D nur auf Desktop — auf Mobile verursacht's Layoutverschiebung
+    if (window.innerWidth > 900) {
+      const rotY = prog * 28 - 14;
+      const rotX = prog * -8 + 4;
+      monitorEl.style.transform = `perspective(1200px) rotateY(${rotY}deg) rotateX(${rotX}deg)`;
+    } else {
+      monitorEl.style.transform = 'none';
+    }
+  }
+
+  window.addEventListener('scroll', onShowcaseScroll, { passive: true });
+  onShowcaseScroll(); // initial paint
+
+  // ── FEATURE CARD MAGNETIC EFFECT ──
+  document.querySelectorAll('.feature-card').forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--x', ((e.clientX - rect.left) / rect.width * 100) + '%');
+      card.style.setProperty('--y', ((e.clientY - rect.top) / rect.height * 100) + '%');
+    });
+  });
+
+  // ── GSAP SCROLL REVEALS ──
+  // Feature cards stagger
+  gsap.utils.toArray('.feature-card').forEach((card, i) => {
+    gsap.to(card, {
+      opacity: 1, y: 0, duration: 0.7,
+      ease: 'power3.out',
+      scrollTrigger: {
+        trigger: card, start: 'top 88%',
+        toggleActions: 'play none none none',
+      },
+      delay: (i % 3) * 0.1,
+    });
+  });
+
+  // Mode cards
+  gsap.to('#mode-lan', {
+    opacity: 1, y: 0, duration: 0.8, ease: 'power3.out',
+    scrollTrigger: { trigger: '#mode-lan', start: 'top 85%' }
+  });
+  gsap.to('#mode-online', {
+    opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', delay: 0.15,
+    scrollTrigger: { trigger: '#mode-online', start: 'top 85%' }
+  });
+
+  // Generic reveal-up elements
+  gsap.utils.toArray('.reveal-up').forEach((el, i) => {
+    gsap.to(el, {
+      opacity: 1, y: 0, duration: 0.8, ease: 'power3.out',
+      scrollTrigger: { trigger: el, start: 'top 88%' },
+      delay: i * 0.05,
+    });
+  });
+
+  // Radar SVG entrance
+  gsap.from('#big-radar-svg', {
+    scale: 0.85, opacity: 0, duration: 1.2, ease: 'power3.out',
+    scrollTrigger: { trigger: '#radar-section', start: 'top 75%' }
+  });
+
+  // Stagger peer animations in big radar
+  ['#peer-win','#peer-android','#peer-mac','#peer-linux'].forEach((id, i) => {
+    gsap.from(id, {
+      scale: 0, opacity: 0, duration: 0.5, ease: 'back.out(2)',
+      delay: 0.4 + i * 0.2,
+      transformOrigin: 'center',
+      scrollTrigger: { trigger: '#radar-section', start: 'top 70%' }
+    });
+  });
+
+  // ── PROGRESS BAR ANIMATION ──
+  // Start animation on chapter 1 (transfer)
+  animateProgress();
+
+  // ── INITIALIZE ──
+  renderDownloadButtons('primary-btns', 'hero-note');
+  renderDownloadButtons('cta-btns', 'cta-note');
+
+  // Set initial device state via CSS
+  document.getElementById('phone-wrap').style.opacity = '0.3';
+  document.getElementById('phone-wrap').style.transform = 'scale(0.88)';
+
+  // Floating animation via CSS — no conflict with scroll-driven rotateY on monitor
+  const floatStyle = document.createElement('style');
+  floatStyle.textContent = `
+    @keyframes float-monitor { 0%,100%{margin-top:0} 50%{margin-top:-10px} }
+    @keyframes float-phone    { 0%,100%{margin-top:0} 50%{margin-top:8px}  }
+    #monitor-wrap { animation: float-monitor 3s ease-in-out infinite; }
+    #phone-wrap   { animation: float-phone 2.5s ease-in-out infinite 0.5s; }
+  `;
+  document.head.appendChild(floatStyle);
+
+  // ── SECURITY SHIELD PULSE ──
+  gsap.to('.security-shield svg', {
+    filter: 'drop-shadow(0 0 30px rgba(16,185,129,0.6))',
+    duration: 1.5, ease: 'sine.inOut', yoyo: true, repeat: -1,
+    scrollTrigger: { trigger: '#security-section', start: 'top 80%' }
+  });
+
+  // ── STATS COUNTER ANIMATION ──
+  ScrollTrigger.create({
+    trigger: '.stats-row',
+    start: 'top 85%',
+    onEnter: () => {
+      document.querySelectorAll('.stat-num').forEach(el => {
+        gsap.from(el, { scale: 0.6, opacity: 0, duration: 0.7, ease: 'back.out(2)' });
+      });
+    }
+  });
+
+  console.log('%c⚡ Giga-Share', 'font-size:24px;font-weight:900;background:linear-gradient(135deg,#8b5cf6,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;');
+  console.log('%cBlazing fast file sharing — LAN or P2P worldwide', 'font-size:12px;color:#64748b;');
+</script>
+</body>
+</html>
