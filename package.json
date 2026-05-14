@@ -21,13 +21,16 @@
     "@tauri-apps/plugin-store": "^2.4.3",
     "@tauri-apps/plugin-upload": "^2.4.0",
     "framer-motion": "^12.38.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "0.447.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/qrcode.react": "^1.0.5",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
