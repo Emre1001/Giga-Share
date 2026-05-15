@@ -165,24 +165,53 @@ export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, settin
                 <span>Download Path</span>
               </div>
               {isMobile ? (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <input
-                    type="text"
-                    value={pathInput || settings.download_path || ''}
-                    onChange={e => handleMobilePathChange(e.target.value)}
-                    placeholder="/storage/emulated/0/Download"
-                    className="glass-input"
-                    style={{ flex: 1, fontSize: '13px' }}
-                  />
-                  <motion.button
-                    className="btn-secondary"
-                    style={{ padding: '0 12px' }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleMobilePathSave}
-                  >
-                    Save
-                  </motion.button>
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    {[
+                      { label: 'Downloads', path: '/storage/emulated/0/Download' },
+                      { label: 'Documents', path: '/storage/emulated/0/Documents' },
+                      { label: 'DCIM', path: '/storage/emulated/0/DCIM' },
+                    ].map(preset => (
+                      <motion.button
+                        key={preset.path}
+                        className="btn-secondary"
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                          opacity: (pathInput || settings.download_path) === preset.path ? 1 : 0.7,
+                          border: (pathInput || settings.download_path) === preset.path
+                            ? '1px solid var(--accent-purple)' : undefined,
+                        }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setPathInput(preset.path);
+                          onUpdate({ ...settings, download_path: preset.path });
+                          invoke("set_download_path", { path: preset.path });
+                        }}
+                      >
+                        {preset.label}
+                      </motion.button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={pathInput || settings.download_path || ''}
+                      onChange={e => handleMobilePathChange(e.target.value)}
+                      placeholder="/storage/emulated/0/Download"
+                      className="glass-input"
+                      style={{ flex: 1, fontSize: '13px' }}
+                    />
+                    <motion.button
+                      className="btn-secondary"
+                      style={{ padding: '0 12px' }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleMobilePathSave}
+                    >
+                      Save
+                    </motion.button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
@@ -407,6 +436,9 @@ export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, settin
                 className="glass-input"
                 style={{ width: '100px', display: 'block', marginTop: '8px' }}
               />
+              <span className="setting-hint" style={{ marginTop: '4px', display: 'block', color: 'var(--text-tertiary)', fontSize: '11px' }}>
+                Restart app for port changes to take effect
+              </span>
             </motion.div>
           </div>
 

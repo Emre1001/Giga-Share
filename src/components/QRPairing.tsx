@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -12,6 +12,8 @@ interface QRPairingProps {
   onClose: () => void;
 }
 
+type ScannerState = 'idle' | 'starting' | 'running' | 'stopping';
+
 export const QRPairing: React.FC<QRPairingProps> = ({
   isOpen,
   mode,
@@ -23,35 +25,54 @@ export const QRPairing: React.FC<QRPairingProps> = ({
   const [scanError, setScanError] = useState('');
   const [copied, setCopied] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerStateRef = useRef<ScannerState>('idle');
   const scannerContainerId = 'qr-scanner-container';
 
   useEffect(() => {
     setActiveMode(mode);
   }, [mode]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      stopScanner();
+  const stopScanner = useCallback(async () => {
+    if (scannerStateRef.current !== 'running' && scannerStateRef.current !== 'starting') {
+      return;
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen && activeMode === 'scan') {
-      startScanner();
-    } else {
-      stopScanner();
+    const scanner = scannerRef.current;
+    if (!scanner) {
+      scannerStateRef.current = 'idle';
+      return;
     }
-    return () => { stopScanner(); };
-  }, [activeMode, isOpen]);
 
-  const startScanner = async () => {
-    setScanError('');
+    scannerStateRef.current = 'stopping';
     try {
-      // Small delay for DOM to render
+      await scanner.stop();
+    } catch (_) {
+      // Camera may already be stopped
+    }
+    try {
+      scanner.clear();
+    } catch (_) {
+      // DOM element may already be cleared
+    }
+    scannerRef.current = null;
+    scannerStateRef.current = 'idle';
+  }, []);
+
+  const startScanner = useCallback(async () => {
+    if (scannerStateRef.current !== 'idle') return;
+
+    setScanError('');
+    scannerStateRef.current = 'starting';
+
+    try {
       await new Promise(r => setTimeout(r, 300));
 
+      if (scannerStateRef.current !== 'starting') return;
+
       const el = document.getElementById(scannerContainerId);
-      if (!el) return;
+      if (!el) {
+        scannerStateRef.current = 'idle';
+        return;
+      }
 
       const scanner = new Html5Qrcode(scannerContainerId);
       scannerRef.current = scanner;
@@ -60,26 +81,40 @@ export const QRPairing: React.FC<QRPairingProps> = ({
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
-          // Check if it's a valid friend code
           if (decodedText.startsWith('GIGA-')) {
             onScanned(decodedText);
             stopScanner();
           }
         },
-        () => {} // ignore errors during scanning
+        () => {}
       );
+
+      if (scannerStateRef.current === 'starting') {
+        scannerStateRef.current = 'running';
+      }
     } catch (err: any) {
+      scannerStateRef.current = 'idle';
+      scannerRef.current = null;
       setScanError(err?.message || 'Camera access denied');
     }
-  };
+  }, [onScanned, stopScanner]);
 
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {});
-      scannerRef.current.clear();
-      scannerRef.current = null;
+  useEffect(() => {
+    if (isOpen && activeMode === 'scan') {
+      startScanner();
+    } else {
+      stopScanner();
     }
-  };
+  }, [activeMode, isOpen, startScanner, stopScanner]);
+
+  useEffect(() => {
+    return () => { stopScanner(); };
+  }, [stopScanner]);
+
+  const handleClose = useCallback(async () => {
+    await stopScanner();
+    onClose();
+  }, [stopScanner, onClose]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(friendCode);
@@ -96,7 +131,7 @@ export const QRPairing: React.FC<QRPairingProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={handleClose}
       >
         <motion.div
           className="glass-panel qr-dialog"
@@ -112,7 +147,7 @@ export const QRPairing: React.FC<QRPairingProps> = ({
             </h2>
             <motion.button
               className="icon-btn"
-              onClick={onClose}
+              onClick={handleClose}
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
             >
@@ -138,7 +173,7 @@ export const QRPairing: React.FC<QRPairingProps> = ({
             </button>
           </div>
 
-          {activeMode === 'show' ? (
+          {activeMode === 'show' && (
             <div className="qr-show-content">
               <div className="qr-code-wrapper">
                 {friendCode ? (
@@ -167,22 +202,26 @@ export const QRPairing: React.FC<QRPairingProps> = ({
                 {copied ? 'Copied' : 'Copy Code'}
               </motion.button>
             </div>
-          ) : (
-            <div className="qr-scan-content">
-              <div
-                id={scannerContainerId}
-                className="qr-scanner-viewport"
-              />
-              {scanError && (
-                <p style={{ color: '#ef4444', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>
-                  {scanError}
-                </p>
-              )}
-              <p className="text-secondary" style={{ fontSize: '12px', marginTop: '10px', textAlign: 'center' }}>
-                Point camera at a friend's QR code
-              </p>
-            </div>
           )}
+
+          {/* Scanner container always in DOM to prevent html5-qrcode crash on unmount */}
+          <div
+            className="qr-scan-content"
+            style={{ display: activeMode === 'scan' ? undefined : 'none' }}
+          >
+            <div
+              id={scannerContainerId}
+              className="qr-scanner-viewport"
+            />
+            {scanError && (
+              <p style={{ color: '#ef4444', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>
+                {scanError}
+              </p>
+            )}
+            <p className="text-secondary" style={{ fontSize: '12px', marginTop: '10px', textAlign: 'center' }}>
+              Point camera at a friend's QR code
+            </p>
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

@@ -96,6 +96,7 @@ function App() {
   const [showSendText, setShowSendText] = useState(false);
   const [sendTextContent, setSendTextContent] = useState("");
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+  const [platform, setPlatform] = useState<string>('unknown');
 
   // Online/P2P state
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -133,8 +134,9 @@ function App() {
   }, [addToast]);
 
   useEffect(() => {
-    const platform = osType();
-    const mobile = platform === "android" || platform === "ios";
+    const detectedPlatform = osType();
+    setPlatform(detectedPlatform);
+    const mobile = detectedPlatform === "android" || detectedPlatform === "ios";
     setIsMobile(mobile);
     isMobileRef.current = mobile;
 
@@ -253,6 +255,18 @@ function App() {
       invoke("get_my_friend_code").then((code: any) => setMyFriendCode(code)).catch(() => {});
     });
 
+    // Backend error events → toast
+    const unlistenDiscoveryErr = listen("discovery_error", (event: any) => {
+      addToast(`Discovery: ${event.payload}`, "error");
+    });
+    const unlistenTransferServerErr = listen("transfer_server_error", (event: any) => {
+      addToast(`Transfer server: ${event.payload}`, "error");
+    });
+    const unlistenP2pErr = listen("p2p_error", (event: any) => {
+      const msg = event.payload?.message || event.payload;
+      addToast(`P2P: ${msg}`, "error");
+    });
+
     // CLI --send files (Windows Send To)
     const unlistenCli = listen("cli_send_files", (event: any) => {
       const data = event.payload as { paths: string[] };
@@ -298,6 +312,9 @@ function App() {
       }
     });
 
+    // Signal backend that all event listeners are registered
+    invoke("frontend_ready").catch(() => {});
+
     return () => {
       unlistenDiscovered.then(f => f());
       unlistenLost.then(f => f());
@@ -306,6 +323,9 @@ function App() {
       unlistenProgress.then(f => f());
       unlistenComplete.then(f => f());
       unlistenP2p.then(f => f());
+      unlistenDiscoveryErr.then(f => f());
+      unlistenTransferServerErr.then(f => f());
+      unlistenP2pErr.then(f => f());
       unlistenCli.then(f => f());
       unlistenDragEnterNative.then(f => f());
       unlistenDragLeaveNative.then(f => f());
@@ -922,7 +942,7 @@ function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4 }}
             >
-              <Radar peers={peers} onSelectPeer={handleSelectPeer} onDropFiles={handleDropFilesToPeer} />
+              <Radar peers={peers} onSelectPeer={handleSelectPeer} onDropFiles={handleDropFilesToPeer} platform={platform} />
               <motion.div
                 style={{ marginTop: 'clamp(16px, 4vh, 40px)' }}
                 initial={{ opacity: 0, y: 20 }}

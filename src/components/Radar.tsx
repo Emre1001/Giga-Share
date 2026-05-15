@@ -16,7 +16,11 @@ interface RadarProps {
   onDropFiles?: (peer: Peer, paths: string[]) => void;
 }
 
-export const Radar: React.FC<RadarProps> = ({ peers, onSelectPeer, onDropFiles }) => {
+interface RadarExtraProps {
+  platform?: string;
+}
+
+export const Radar: React.FC<RadarProps & RadarExtraProps> = ({ peers, onSelectPeer, onDropFiles, platform }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [radius, setRadius] = useState(130);
   const [dragOverPeer, setDragOverPeer] = useState<string | null>(null);
@@ -66,11 +70,8 @@ export const Radar: React.FC<RadarProps> = ({ peers, onSelectPeer, onDropFiles }
         transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
       >
         <OsIcon
-          os={navigator.userAgent.includes('Windows') ? 'windows' :
-              navigator.userAgent.includes('Mac') ? 'macos' :
-              navigator.userAgent.includes('Linux') ? 'linux' :
-              navigator.userAgent.includes('Android') ? 'android' : 'unknown'}
-          type="desktop"
+          os={platform || 'unknown'}
+          type={platform === 'android' || platform === 'ios' ? 'mobile' : 'desktop'}
           size={36}
         />
       </motion.div>
