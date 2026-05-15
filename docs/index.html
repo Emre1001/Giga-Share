@@ -37,13 +37,15 @@
       --blue-glow: rgba(59,130,246,0.35);
     }
 
-    html { scroll-behavior: smooth; overflow-x: hidden; }
+    /* overflow-x: clip (not hidden) — `hidden` creates new scroll context
+       and breaks position:sticky on the showcase. `clip` preserves sticky. */
+    html { scroll-behavior: smooth; overflow-x: clip; }
 
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
-      overflow-x: hidden;
+      overflow-x: clip;
       max-width: 100vw;
       -webkit-font-smoothing: antialiased;
     }
@@ -53,6 +55,18 @@
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* ── SCROLL PROGRESS BAR ── */
+    #scroll-progress {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 2px; z-index: 1100;
+      background: linear-gradient(90deg, var(--purple), var(--blue), var(--cyan));
+      transform-origin: 0 50%;
+      transform: scaleX(0);
+      transition: transform 0.08s linear;
+      pointer-events: none;
+      box-shadow: 0 0 12px var(--purple-glow);
+    }
 
     /* ── NAV ── */
     nav {
@@ -250,10 +264,12 @@
     .platform-item:last-child { border-bottom: none; }
     .platform-item:hover { background: var(--glass2); }
     .platform-icon {
-      width: 36px; height: 36px; border-radius: 10px;
+      width: 38px; height: 38px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
+      flex-shrink: 0; position: relative; overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
     }
+    .platform-icon svg { width: 20px; height: 20px; }
     .platform-info { flex: 1; text-align: left; }
     .platform-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
     .platform-desc { font-size: 12px; color: var(--text-dim); }
@@ -334,21 +350,25 @@
       display: grid; grid-template-columns: 1fr 1fr;
       align-items: center; gap: 60px;
     }
-    .showcase-text { position: relative; }
+    /* Fixed-height container — chapters stack absolutely, no layout jumps */
+    .showcase-text {
+      position: relative;
+      min-height: 360px;
+    }
     .showcase-chapter {
-      position: absolute; top: 0; left: 0; right: 0;
-      opacity: 0; transform: translateY(24px);
+      position: absolute; inset: 0;
+      opacity: 0; transform: translateY(24px) scale(0.98);
       pointer-events: none;
-      transition: opacity 0.55s cubic-bezier(0.4,0,0.2,1),
-                  transform 0.55s cubic-bezier(0.4,0,0.2,1);
+      transition: opacity 0.5s cubic-bezier(0.4,0,0.2,1),
+                  transform 0.5s cubic-bezier(0.4,0,0.2,1);
       will-change: opacity, transform;
     }
     .showcase-chapter.active {
-      position: relative; opacity: 1; transform: translateY(0);
+      opacity: 1; transform: translateY(0) scale(1);
       pointer-events: auto;
     }
-    .showcase-chapter.exit-up   { opacity: 0; transform: translateY(-24px); }
-    .showcase-chapter.exit-down { opacity: 0; transform: translateY(24px); }
+    .showcase-chapter.exit-up   { opacity: 0; transform: translateY(-24px) scale(0.98); }
+    .showcase-chapter.exit-down { opacity: 0; transform: translateY(24px) scale(0.98); }
     .chapter-step {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 4px 12px; border-radius: 20px;
@@ -387,7 +407,7 @@
     .monitor-wrap {
       position: relative; z-index: 2;
       transform-style: preserve-3d;
-      transition: transform 0.9s cubic-bezier(0.4,0,0.2,1);
+      transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
       will-change: transform;
     }
     .monitor-frame {
@@ -602,15 +622,30 @@
       opacity: 0; transition: opacity 0.3s;
     }
     .feature-card:hover::before { opacity: 1; }
+    .feature-card {
+      transition: border-color 0.3s, box-shadow 0.3s, transform 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
     .feature-card:hover {
       border-color: rgba(139,92,246,0.3);
-      transform: translateY(-4px);
       box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139,92,246,0.15);
     }
     .feature-icon {
-      width: 48px; height: 48px; border-radius: 14px;
+      width: 52px; height: 52px; border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
-      margin-bottom: 18px; font-size: 22px;
+      margin-bottom: 18px;
+      position: relative; overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06),
+                  inset 0 12px 24px rgba(255,255,255,0.04);
+      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    }
+    .feature-icon svg { width: 26px; height: 26px; position: relative; z-index: 1; }
+    .feature-icon::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 120%, rgba(255,255,255,0.18), transparent 60%);
+      pointer-events: none;
+    }
+    .feature-card:hover .feature-icon {
+      transform: scale(1.08) rotate(-3deg);
     }
     .feature-title {
       font-size: 17px; font-weight: 700; margin-bottom: 10px;
@@ -636,15 +671,39 @@
       border: 1px solid var(--border);
       border-radius: 24px; padding: 36px;
       opacity: 0; transform: translateY(40px);
+      transition: border-color 0.3s, box-shadow 0.3s, transform 0.4s cubic-bezier(0.16,1,0.3,1);
+      position: relative; overflow: hidden;
+    }
+    .mode-card::before {
+      content: ''; position: absolute; inset: -1px; border-radius: 24px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(139,92,246,0), rgba(139,92,246,0.4), rgba(59,130,246,0));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      opacity: 0; transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    .mode-card:hover::before { opacity: 1; }
+    .mode-card:hover {
+      border-color: rgba(139,92,246,0.3);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
     }
     .mode-card-header {
       display: flex; align-items: center; gap: 14px; margin-bottom: 28px;
     }
     .mode-icon {
-      width: 52px; height: 52px; border-radius: 16px;
+      width: 56px; height: 56px; border-radius: 16px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
+      position: relative; overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
     }
+    .mode-icon svg { width: 28px; height: 28px; }
+    .mode-icon::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 120%, rgba(255,255,255,0.18), transparent 60%);
+      pointer-events: none;
+    }
+    .step-num svg { width: 14px; height: 14px; }
     .mode-title { font-size: 22px; font-weight: 800; }
     .mode-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
     .mode-steps { display: flex; flex-direction: column; gap: 20px; }
@@ -776,6 +835,16 @@
     .peer-main { animation: peer-blink 2s ease-in-out infinite; }
     .peer-ping-ring { animation: peer-ping 2s ease-out infinite; }
 
+    /* Connection line dash flow */
+    @keyframes line-flow {
+      from { stroke-dashoffset: 0; }
+      to   { stroke-dashoffset: -20; }
+    }
+    .conn-line {
+      stroke-dasharray: 4 6;
+      animation: line-flow 1.6s linear infinite;
+    }
+
     /* GSAP targets */
     .reveal-up { opacity: 0; transform: translateY(40px); }
 
@@ -794,8 +863,10 @@
       }
       /* Kill 3D rotation on mobile — causes content to appear shifted */
       .monitor-wrap { transform: none !important; transition: none !important; }
+      .showcase-text { min-height: 280px; }
       .showcase-chapter { text-align: center; }
       .chapter-pills { justify-content: center; }
+      .feature-card { transform: none !important; }
       .modes-grid { grid-template-columns: 1fr; }
       nav { padding: 0 20px; }
       .nav-link { display: none; }
@@ -835,10 +906,14 @@
       .footer-links { gap: 10px; }
       .platform-item { flex-wrap: wrap; padding: 12px 14px; gap: 10px; }
       .platform-btns { flex-wrap: wrap; width: 100%; }
+      .showcase-text { min-height: 320px; }
     }
   </style>
 </head>
 <body>
+
+<!-- SCROLL PROGRESS -->
+<div id="scroll-progress"></div>
 
 <!-- PARTICLES CANVAS -->
 <canvas id="particles-canvas"></canvas>
@@ -898,7 +973,9 @@
 
       <div class="platforms-dropdown" id="platforms-dropdown">
         <div class="platform-item" onclick="dl('windows-setup')">
-          <div class="platform-icon" style="background:rgba(59,130,246,0.15);">🪟</div>
+          <div class="platform-icon" style="background:linear-gradient(135deg,rgba(59,130,246,0.3),rgba(59,130,246,0.05));color:#60a5fa">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          </div>
           <div class="platform-info">
             <div class="platform-name">Windows</div>
             <div class="platform-desc">Windows 10/11 · x64</div>
@@ -909,7 +986,9 @@
           </div>
         </div>
         <div class="platform-item" onclick="dl('android')">
-          <div class="platform-icon" style="background:rgba(16,185,129,0.15);">🤖</div>
+          <div class="platform-icon" style="background:linear-gradient(135deg,rgba(16,185,129,0.3),rgba(16,185,129,0.05));color:#34d399">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.34c-.445 0-.81-.35-.81-.78s.365-.78.81-.78c.445 0 .81.35.81.78s-.365.78-.81.78m-11.046 0c-.445 0-.81-.35-.81-.78s.365-.78.81-.78c.445 0 .81.35.81.78s-.365.78-.81.78m11.231-6.27l1.62-2.81c.085-.143.032-.324-.116-.407-.147-.083-.332-.031-.417.112l-1.65 2.85c-1.36-.62-2.97-.97-4.69-.97-1.72 0-3.33.35-4.69.97l-1.65-2.85c-.085-.143-.27-.195-.417-.112-.148.083-.201.264-.116.407l1.62 2.81C3.79 10.62 1.92 13.4 1.5 17h21c-.42-3.6-2.29-6.38-5.292-7.93"/></svg>
+          </div>
           <div class="platform-info">
             <div class="platform-name">Android</div>
             <div class="platform-desc">Android 8.0+ · APK Sideload</div>
@@ -919,7 +998,9 @@
           </div>
         </div>
         <div class="platform-item" style="opacity:0.5;cursor:default;">
-          <div class="platform-icon" style="background:rgba(251,191,36,0.15);">🐧</div>
+          <div class="platform-icon" style="background:linear-gradient(135deg,rgba(251,191,36,0.3),rgba(251,191,36,0.05));color:#fbbf24">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3"/><path d="M6 21c0-3 2.5-5 6-5s6 2 6 5"/><path d="M9 5l-2-3"/><path d="M15 5l2-3"/></svg>
+          </div>
           <div class="platform-info">
             <div class="platform-name">Linux</div>
             <div class="platform-desc">Coming Soon</div>
@@ -929,7 +1010,9 @@
           </div>
         </div>
         <div class="platform-item" style="opacity:0.5;cursor:default;">
-          <div class="platform-icon" style="background:rgba(241,245,249,0.08);">🍎</div>
+          <div class="platform-icon" style="background:linear-gradient(135deg,rgba(241,245,249,0.18),rgba(241,245,249,0.02));color:#e2e8f0">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          </div>
           <div class="platform-info">
             <div class="platform-name">macOS</div>
             <div class="platform-desc">Coming Soon</div>
@@ -958,7 +1041,7 @@
       <!-- TEXT COLUMN -->
       <div class="showcase-text">
         <div class="showcase-chapter" id="chap-0">
-          <div class="chapter-step">⚡ LAN-Modus</div>
+          <div class="chapter-step"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> LAN-Modus</div>
           <h2 class="chapter-title">Sofortige Erkennung<br>im Netzwerk</h2>
           <p class="chapter-body">Geräte erscheinen automatisch auf dem Radar. Kein Setup, kein Pairing. App öffnen – und sofort sehen, wer im WLAN ist.</p>
           <div class="chapter-pills">
@@ -969,7 +1052,7 @@
         </div>
 
         <div class="showcase-chapter" id="chap-1">
-          <div class="chapter-step">🚀 Übertragung</div>
+          <div class="chapter-step"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> Übertragung</div>
           <h2 class="chapter-title">Blitzschnell.<br>Vollständige Wiederaufnahme.</h2>
           <p class="chapter-body">Dateien streamen direkt über TCP mit voller LAN-Geschwindigkeit. Verbindung getrennt? Genau dort weitermachen, wo aufgehört wurde.</p>
           <div class="chapter-pills">
@@ -980,7 +1063,7 @@
         </div>
 
         <div class="showcase-chapter" id="chap-2">
-          <div class="chapter-step">🌐 Online-Modus</div>
+          <div class="chapter-step"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Online-Modus</div>
           <h2 class="chapter-title">Weltweit senden.<br>Privat bleiben.</h2>
           <p class="chapter-body">Freunde einmalig via QR-Code oder Freundescode hinzufügen. Giga-Share regelt NAT-Traversal automatisch – kein Port-Forwarding nötig.</p>
           <div class="chapter-pills">
@@ -991,7 +1074,7 @@
         </div>
 
         <div class="showcase-chapter" id="chap-3">
-          <div class="chapter-step">📱 Plattformübergreifend</div>
+          <div class="chapter-step"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Plattformübergreifend</div>
           <h2 class="chapter-title">Jedes Gerät.<br>Eine App.</h2>
           <p class="chapter-body">Windows-Desktop zum Android-Handy, PC zum MacBook. Das Radar zeigt jeden Peer mit betriebssystemspezifischen Icons.</p>
           <div class="chapter-pills">
@@ -1016,7 +1099,7 @@
             </div>
             <div class="monitor-screen-area" id="monitor-screen">
               <div class="mini-app-header">
-                <span class="mini-logo">⚡ Giga-Share</span>
+                <span class="mini-logo" style="display:inline-flex;align-items:center;gap:3px"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Giga-Share</span>
                 <span class="mini-mode-badge" id="mini-mode">LAN</span>
               </div>
               <!-- Mini radar -->
@@ -1101,7 +1184,7 @@
           <div class="phone-frame">
             <div class="phone-notch"></div>
             <div class="phone-screen-area">
-              <div class="mini-phone-header">⚡ Giga-Share</div>
+              <div class="mini-phone-header" style="display:inline-flex;align-items:center;gap:3px;"><svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Giga-Share</div>
               <div class="mini-phone-radar">
                 <svg class="mini-phone-radar-svg" viewBox="0 0 100 90">
                   <defs>
@@ -1123,7 +1206,7 @@
                 </svg>
               </div>
               <div class="mini-share-sheet">
-                <div class="mini-share-title">📤 Sharing via LAN</div>
+                <div class="mini-share-title" style="display:inline-flex;align-items:center;gap:3px;"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Sharing via LAN</div>
                 <div class="mini-share-file">video_clip.mp4 · 847 MB</div>
               </div>
               <div style="margin:4px 6px;">
@@ -1206,6 +1289,12 @@
         <line x1="200" y1="200" x2="200" y2="12" stroke="#8b5cf6" stroke-width="1.5" opacity="0.9" filter="url(#bigGlow)"/>
       </g>
 
+      <!-- Connection lines (peer ↔ center, animated dash flow) -->
+      <line class="conn-line" x1="200" y1="200" x2="300" y2="110" stroke="rgba(59,130,246,0.35)" stroke-width="1.2"/>
+      <line class="conn-line" x1="200" y1="200" x2="105" y2="260" stroke="rgba(16,185,129,0.35)" stroke-width="1.2" style="animation-delay:0.4s"/>
+      <line class="conn-line" x1="200" y1="200" x2="310" y2="280" stroke="rgba(226,232,240,0.25)" stroke-width="1.2" style="animation-delay:0.8s"/>
+      <line class="conn-line" x1="200" y1="200" x2="155" y2="95"  stroke="rgba(251,191,36,0.30)" stroke-width="1.2" style="animation-delay:1.2s"/>
+
       <!-- Peer: Windows PC -->
       <g class="peer-label-group" id="peer-win" filter="url(#peerGlow)">
         <circle cx="300" cy="110" r="12" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.4" class="peer-ping-ring" style="animation-delay:0s"/>
@@ -1281,47 +1370,65 @@
 
   <div class="features-grid">
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(139,92,246,0.15)">⚡</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(139,92,246,0.25),rgba(139,92,246,0.05));color:#a78bfa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
       <h3 class="feature-title">Gleichzeitige Übertragungen</h3>
       <p class="feature-desc">Gleichzeitig an mehrere Geräte senden. Jede Übertragung einzeln verfolgen – mit Echtzeit-Geschwindigkeitsgraph und ETA pro Datei.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(59,130,246,0.15)">🔒</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(59,130,246,0.25),rgba(59,130,246,0.05));color:#60a5fa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
       <h3 class="feature-title">E2E-Verschlüsselt</h3>
       <p class="feature-desc">Alle Online-Übertragungen nutzen TLS 1.3 via QUIC. Deine Dateien berühren niemals einen Cloud-Server. Keine Daten, keine Logs.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(16,185,129,0.15)">↩️</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(16,185,129,0.25),rgba(16,185,129,0.05));color:#34d399">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      </div>
       <h3 class="feature-title">Übertragungswiederaufnahme</h3>
       <p class="feature-desc">Verbindung bei 3,9 GB von 4 GB getrennt? Genau dort weitermachen, wo aufgehört wurde. Teildateien als .part gespeichert bis Abschluss.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(6,182,212,0.15)">📱</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(6,182,212,0.25),rgba(6,182,212,0.05));color:#22d3ee">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+      </div>
       <h3 class="feature-title">Android-Freigabe</h3>
       <p class="feature-desc">„Mit Giga-Share teilen" erscheint im nativen Android-Freigabemenü. Fotos, Videos und Dokumente in zwei Tipps senden.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(251,191,36,0.15)">📂</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(251,191,36,0.25),rgba(251,191,36,0.05));color:#fbbf24">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </div>
       <h3 class="feature-title">Windows „Senden an"</h3>
       <p class="feature-desc">Rechtsklick auf eine Datei → Senden an → Giga-Share. App öffnet sich und zeigt die Geräteauswahl. Maximaler Komfort.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(244,63,94,0.15)">🎯</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(244,63,94,0.25),rgba(244,63,94,0.05));color:#fb7185">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      </div>
       <h3 class="feature-title">Drag &amp; Drop</h3>
       <p class="feature-desc">Dateien direkt auf einen Peer im Radar oder auf einen Freund in der Liste ziehen. Übertragung startet sofort, keine Dialoge nötig.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(139,92,246,0.15)">📷</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(139,92,246,0.25),rgba(139,92,246,0.05));color:#a78bfa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      </div>
       <h3 class="feature-title">QR-Code-Pairing</h3>
       <p class="feature-desc">Freunde durch Scannen eines QR-Codes hinzufügen. Kein Eintippen von 64-Zeichen-Codes. Einfach scannen und loslegen.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(59,130,246,0.15)">🚦</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(59,130,246,0.25),rgba(59,130,246,0.05));color:#60a5fa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
       <h3 class="feature-title">Geschwindigkeitslimit</h3>
       <p class="feature-desc">Separate Mbit/s-Limits für LAN und Online-Übertragungen setzen. Netzwerk verfügbar halten, während riesige Dateien geteilt werden.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon" style="background:rgba(16,185,129,0.15)">📦</div>
+      <div class="feature-icon" style="background:linear-gradient(135deg,rgba(16,185,129,0.25),rgba(16,185,129,0.05));color:#34d399">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
       <h3 class="feature-title">Portabler Modus</h3>
       <p class="feature-desc">Auf Windows von einem USB-Stick ausführen. portable.marker neben die .exe legen – Konfiguration wird daneben gespeichert. Kein Setup nötig.</p>
     </div>
@@ -1340,7 +1447,9 @@
     <div class="modes-grid">
       <div class="mode-card" id="mode-lan">
         <div class="mode-card-header">
-          <div class="mode-icon" style="background:rgba(59,130,246,0.15); font-size:26px">📡</div>
+          <div class="mode-icon" style="background:linear-gradient(135deg,rgba(59,130,246,0.3),rgba(59,130,246,0.05));color:#60a5fa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          </div>
           <div>
             <div class="mode-title">LAN-Modus</div>
             <div class="mode-subtitle">Gleiches WLAN · UDP + TCP</div>
@@ -1373,7 +1482,9 @@
 
       <div class="mode-card" id="mode-online">
         <div class="mode-card-header">
-          <div class="mode-icon" style="background:rgba(139,92,246,0.15); font-size:26px">🌐</div>
+          <div class="mode-icon" style="background:linear-gradient(135deg,rgba(139,92,246,0.3),rgba(139,92,246,0.05));color:#a78bfa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
           <div>
             <div class="mode-title">Online-Modus</div>
             <div class="mode-subtitle">Weltweit · QUIC + E2E</div>
@@ -1460,7 +1571,10 @@
 
 <!-- ── FOOTER ── -->
 <footer>
-  <span class="footer-logo">⚡ Giga-Share</span>
+  <span class="footer-logo" style="display:inline-flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#a78bfa"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    Giga-Share
+  </span>
   <div class="footer-links">
     <a href="https://github.com/Emre1001/Giga-Share" target="_blank" class="footer-link">GitHub</a>
     <a href="https://github.com/Emre1001/Giga-Share/issues" target="_blank" class="footer-link">Bug melden</a>
@@ -1613,10 +1727,16 @@
     init(); draw();
   })();
 
-  // ── NAV SCROLL EFFECT ──
-  window.addEventListener('scroll', () => {
+  // ── NAV SCROLL EFFECT + PROGRESS BAR ──
+  const progressBar = document.getElementById('scroll-progress');
+  function updateNavAndProgress() {
     document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 40);
-  });
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    const prog = docH > 0 ? window.scrollY / docH : 0;
+    if (progressBar) progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, prog))})`;
+  }
+  window.addEventListener('scroll', updateNavAndProgress, { passive: true });
+  updateNavAndProgress();
 
   // ── PLATFORMS DROPDOWN ──
   const toggleBtn = document.getElementById('platforms-toggle');
@@ -1636,20 +1756,15 @@
     const next = document.getElementById(chapters[idx]);
     const goDown = idx > currentChapter;
 
-    // Exit old via CSS class (transition handles easing)
+    // No position swap — chapters always absolute (CSS). Just swap classes.
     old.classList.remove('active');
     old.classList.add(goDown ? 'exit-up' : 'exit-down');
-    old.style.position = 'absolute';
-    old.style.pointerEvents = 'none';
 
-    // Enter new — force reflow so transition fires from start state
-    next.style.position = 'relative';
     next.classList.remove('exit-up', 'exit-down');
-    void next.offsetWidth; // reflow
+    void next.offsetWidth; // reflow forces transition restart
     next.classList.add('active');
 
-    // Cleanup exit class after transition done
-    setTimeout(() => old.classList.remove('exit-up', 'exit-down'), 620);
+    setTimeout(() => old.classList.remove('exit-up', 'exit-down'), 560);
 
     document.querySelectorAll('.showcase-dot').forEach((d, i) => {
       d.classList.toggle('active', i === idx);
@@ -1659,29 +1774,20 @@
     currentChapter = idx;
   }
 
-  function updateDeviceForChapter(idx) {
-    const modeLabel = document.getElementById('mini-mode');
-    const phoneWrap = document.getElementById('phone-wrap');
-    const monitorWrap = document.getElementById('monitor-wrap');
-    const miniTransfer = document.getElementById('mini-transfer-panel');
-    const miniRadarContainer = document.getElementById('mini-radar-container');
+  // Per-chapter device state targets (lerped continuously during scroll)
+  const deviceCfgs = [
+    { mode: 'LAN',    phone: 0.30, phoneScale: 0.86, transfer: 0.35, radar: 1.00, monitorScale: 0.94 },
+    { mode: 'LAN',    phone: 0.55, phoneScale: 0.92, transfer: 1.00, radar: 0.45, monitorScale: 1.00 },
+    { mode: 'Online', phone: 0.95, phoneScale: 1.00, transfer: 0.55, radar: 0.80, monitorScale: 0.98 },
+    { mode: 'LAN',    phone: 1.00, phoneScale: 1.05, transfer: 0.40, radar: 1.00, monitorScale: 1.02 },
+  ];
 
-    const cfgs = [
-      { mode: 'LAN',    phone: 0.3, phoneScale: 0.88, transfer: 0.4, radar: 1   },
-      { mode: 'LAN',    phone: 0.55, phoneScale: 0.92, transfer: 1,   radar: 0.5 },
-      { mode: 'Online', phone: 0.9, phoneScale: 1,    transfer: 0.5, radar: 0.8 },
-      { mode: 'LAN',    phone: 1,   phoneScale: 1.04, transfer: 0.4, radar: 1   },
-    ];
-    const c = cfgs[idx] || cfgs[0];
+  function updateDeviceForChapter(idx) {
+    // Only updates mode label and triggers progress animation on chapter 1.
+    // Continuous lerp now handled by onShowcaseScroll for phone/transfer/radar/tilt.
+    const modeLabel = document.getElementById('mini-mode');
+    const c = deviceCfgs[idx] || deviceCfgs[0];
     modeLabel.textContent = c.mode;
-    const t = 'opacity 0.5s ease, transform 0.5s ease';
-    phoneWrap.style.transition = t;
-    phoneWrap.style.opacity = c.phone;
-    phoneWrap.style.transform = `scale(${c.phoneScale})`;
-    miniTransfer.style.transition = 'opacity 0.4s ease';
-    miniTransfer.style.opacity = c.transfer;
-    miniRadarContainer.style.transition = 'opacity 0.4s ease';
-    miniRadarContainer.style.opacity = c.radar;
     if (idx === 1) animateProgress();
   }
 
@@ -1705,18 +1811,99 @@
   gsap.registerPlugin(ScrollTrigger);
 
   // Initialize chapters — CSS classes drive transitions, no GSAP
-  const chap0 = document.getElementById('chap-0');
-  chap0.classList.add('active');
-  chap0.style.position = 'relative';
-  chapters.slice(1).forEach(id => {
-    const el = document.getElementById(id);
-    el.style.top = '0'; el.style.left = '0'; el.style.right = '0';
-  });
+  document.getElementById('chap-0').classList.add('active');
 
-  // Single passive scroll listener drives showcase — no ScrollTrigger conflict
+  // ── APPLE-STYLE SCROLL-DRIVEN DEVICE MORPH ──
+  // Single passive scroll listener drives chapter switch AND continuous device morph.
   const chapBreaks = [0, 0.22, 0.55, 0.78];
   const showcaseWrapper = document.getElementById('showcase-wrapper');
   const monitorEl = document.getElementById('monitor-wrap');
+  const phoneEl = document.getElementById('phone-wrap');
+  const miniTransferEl = document.getElementById('mini-transfer-panel');
+  const miniRadarEl = document.getElementById('mini-radar-container');
+
+  // Per-chapter tilt targets (combined with cursor tilt on desktop)
+  const chapterTilts = [
+    { rotY: -6, rotX: 4 },
+    { rotY:  2, rotX: 2 },
+    { rotY:  8, rotX:-2 },
+    { rotY:  0, rotX: 3 },
+  ];
+
+  let mouseDX = 0, mouseDY = 0;
+  let curRotY = 0, curRotX = 0;
+  // Continuous lerped device state values (driven by scroll, smoothed by rAF)
+  let curPhoneOp = 0.3, curPhoneScale = 0.86;
+  let curTransferOp = 0.35, curRadarOp = 1.0, curMonScale = 0.94;
+  // Targets updated by scroll handler
+  let tgtRotY = -6, tgtRotX = 4;
+  let tgtPhoneOp = 0.3, tgtPhoneScale = 0.86;
+  let tgtTransferOp = 0.35, tgtRadarOp = 1.0, tgtMonScale = 0.94;
+  let rafRunning = false;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function tickDeviceMorph() {
+    rafRunning = true;
+    const isDesktop = window.innerWidth > 900;
+
+    // Smoothly approach all targets
+    curRotY      = lerp(curRotY,      tgtRotY + mouseDX * 5, 0.1);
+    curRotX      = lerp(curRotX,      tgtRotX + mouseDY * -3, 0.1);
+    curPhoneOp   = lerp(curPhoneOp,   tgtPhoneOp,   0.12);
+    curPhoneScale= lerp(curPhoneScale,tgtPhoneScale,0.12);
+    curTransferOp= lerp(curTransferOp,tgtTransferOp,0.12);
+    curRadarOp   = lerp(curRadarOp,   tgtRadarOp,   0.12);
+    curMonScale  = lerp(curMonScale,  tgtMonScale,  0.12);
+
+    if (isDesktop) {
+      monitorEl.style.transform =
+        `perspective(1400px) rotateY(${curRotY.toFixed(2)}deg) rotateX(${curRotX.toFixed(2)}deg) scale(${curMonScale.toFixed(3)})`;
+    } else {
+      monitorEl.style.transform = `scale(${curMonScale.toFixed(3)})`;
+    }
+    phoneEl.style.opacity = curPhoneOp.toFixed(3);
+    phoneEl.style.transform = `scale(${curPhoneScale.toFixed(3)})`;
+    miniTransferEl.style.opacity = curTransferOp.toFixed(3);
+    miniRadarEl.style.opacity = curRadarOp.toFixed(3);
+
+    // Continue rAF if any value not yet at target
+    const settled =
+      Math.abs(curRotY - (tgtRotY + mouseDX * 5)) < 0.02 &&
+      Math.abs(curRotX - (tgtRotX + mouseDY * -3)) < 0.02 &&
+      Math.abs(curPhoneOp - tgtPhoneOp) < 0.005 &&
+      Math.abs(curPhoneScale - tgtPhoneScale) < 0.005 &&
+      Math.abs(curTransferOp - tgtTransferOp) < 0.005 &&
+      Math.abs(curRadarOp - tgtRadarOp) < 0.005 &&
+      Math.abs(curMonScale - tgtMonScale) < 0.005;
+    if (!settled) {
+      requestAnimationFrame(tickDeviceMorph);
+    } else {
+      rafRunning = false;
+    }
+  }
+
+  function poke() {
+    if (!rafRunning) { rafRunning = true; requestAnimationFrame(tickDeviceMorph); }
+  }
+
+  // Cursor influence (desktop only — hovering near showcase)
+  const stickyEl = document.getElementById('showcase-sticky');
+  stickyEl.addEventListener('mousemove', e => {
+    if (window.innerWidth <= 900) return;
+    const r = stickyEl.getBoundingClientRect();
+    mouseDX = ((e.clientX - r.left) / r.width - 0.5) * 2;
+    mouseDY = ((e.clientY - r.top) / r.height - 0.5) * 2;
+    poke();
+  });
+  stickyEl.addEventListener('mouseleave', () => {
+    mouseDX = 0; mouseDY = 0; poke();
+  });
+
+  // Strip inline transition on phone/transfer/radar — rAF lerp drives them now
+  phoneEl.style.transition = 'none';
+  miniTransferEl.style.transition = 'none';
+  miniRadarEl.style.transition = 'none';
 
   function onShowcaseScroll() {
     const rect = showcaseWrapper.getBoundingClientRect();
@@ -1725,32 +1912,66 @@
     if (total <= 0) return;
     const prog = Math.max(0, Math.min(1, scrolled / total));
 
-    // Chapter switching — debounced by goChapter's own guard
+    // Determine current chapter from breakpoints
     let newCh = 0;
     for (let i = chapBreaks.length - 1; i >= 0; i--) {
       if (prog >= chapBreaks[i]) { newCh = i; break; }
     }
-    if (newCh !== currentChapter) goChapter(newCh);
 
-    // 3D nur auf Desktop — auf Mobile verursacht's Layoutverschiebung
-    if (window.innerWidth > 900) {
-      const rotY = prog * 28 - 14;
-      const rotX = prog * -8 + 4;
-      monitorEl.style.transform = `perspective(1200px) rotateY(${rotY}deg) rotateX(${rotX}deg)`;
-    } else {
-      monitorEl.style.transform = 'none';
-    }
+    // Sub-progress within current chapter segment (0..1) — drives continuous morph
+    const segStart = chapBreaks[newCh];
+    const segEnd = (newCh < chapBreaks.length - 1) ? chapBreaks[newCh + 1] : 1;
+    const segLen = Math.max(0.0001, segEnd - segStart);
+    const subRaw = Math.max(0, Math.min(1, (prog - segStart) / segLen));
+    // Ease-in-out so morph feels smooth, not linear
+    const sub = subRaw < 0.5
+      ? 2 * subRaw * subRaw
+      : 1 - Math.pow(-2 * subRaw + 2, 2) / 2;
+
+    // Interpolate device targets between current and next chapter config
+    const a = deviceCfgs[newCh];
+    const b = deviceCfgs[Math.min(newCh + 1, deviceCfgs.length - 1)];
+    tgtPhoneOp    = lerp(a.phone,        b.phone,        sub);
+    tgtPhoneScale = lerp(a.phoneScale,   b.phoneScale,   sub);
+    tgtTransferOp = lerp(a.transfer,     b.transfer,     sub);
+    tgtRadarOp    = lerp(a.radar,        b.radar,        sub);
+    tgtMonScale   = lerp(a.monitorScale, b.monitorScale, sub);
+
+    // Same for tilt
+    const ta = chapterTilts[newCh];
+    const tb = chapterTilts[Math.min(newCh + 1, chapterTilts.length - 1)];
+    tgtRotY = lerp(ta.rotY, tb.rotY, sub);
+    tgtRotX = lerp(ta.rotX, tb.rotX, sub);
+
+    if (newCh !== currentChapter) goChapter(newCh);
+    poke();
   }
 
   window.addEventListener('scroll', onShowcaseScroll, { passive: true });
-  onShowcaseScroll(); // initial paint
+  onShowcaseScroll();
+  poke();
 
-  // ── FEATURE CARD MAGNETIC EFFECT ──
+  // ── FEATURE CARD MAGNETIC + 3D TILT EFFECT ──
   document.querySelectorAll('.feature-card').forEach(card => {
+    card.style.transformStyle = 'preserve-3d';
+    card.style.willChange = 'transform';
+    let raf = 0;
     card.addEventListener('mousemove', e => {
       const rect = card.getBoundingClientRect();
-      card.style.setProperty('--x', ((e.clientX - rect.left) / rect.width * 100) + '%');
-      card.style.setProperty('--y', ((e.clientY - rect.top) / rect.height * 100) + '%');
+      const px = (e.clientX - rect.left) / rect.width;
+      const py = (e.clientY - rect.top) / rect.height;
+      card.style.setProperty('--x', (px * 100) + '%');
+      card.style.setProperty('--y', (py * 100) + '%');
+      if (window.innerWidth <= 900) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rotY = (px - 0.5) * 8;
+        const rotX = (0.5 - py) * 8;
+        card.style.transform = `perspective(900px) rotateY(${rotY}deg) rotateX(${rotX}deg) translateY(-4px)`;
+      });
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = 'perspective(900px) rotateY(0deg) rotateX(0deg) translateY(0)';
     });
   });
 
@@ -1811,9 +2032,7 @@
   renderDownloadButtons('primary-btns', 'hero-note');
   renderDownloadButtons('cta-btns', 'cta-note');
 
-  // Set initial device state via CSS
-  document.getElementById('phone-wrap').style.opacity = '0.3';
-  document.getElementById('phone-wrap').style.transform = 'scale(0.88)';
+  // Initial device state handled by rAF lerp in onShowcaseScroll — nothing to set here.
 
   // Floating animation via CSS — no conflict with scroll-driven rotateY on monitor
   const floatStyle = document.createElement('style');
