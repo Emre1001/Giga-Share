@@ -4,48 +4,47 @@ Cross-platform file sharing app. Tauri v2 (Rust + React). Targets Windows (.exe)
 
 ## Architecture
 
-- **Discovery**: UDP broadcast on port 52525, protocol `GIGASHARE_V2:{name}|{device_type}|{port}|{os_type}` (V1 backward-compat)
-- **Transfer (LAN)**: TCP on port 52526 (configurable). Manifest-first protocol with ACK handshake.
-- **Transfer (Online)**: QUIC via iroh P2P. Same manifest protocol over bidirectional QUIC streams. E2E encrypted (TLS 1.3). NAT traversal via STUN + DERP relay fallback.
-- **Frontend**: React + framer-motion + recharts + lucide-react
-- **Backend**: Rust (tokio async)
-- **P2P**: iroh 0.32 — Ed25519 keypair per device, NodeId as friend identifier, n0 DERP relays
+Backend rewritten from scratch 2026-10-15 (the old `src-tauri/` was never committed and was lost).
 
-## Key Modules
+- **Discovery**: UDP broadcast on port 52525, every 2s. Hello `GIGASHARE_V3:{instance_id}|{name}|{device_type}|{port}|{os_type}|{p2p_id}` (p2p_id optional; enables one-tap "add friend" for nearby devices), bye `GIGASHARE_BYE:{instance_id}` on exit. Peers expire after 7s. Self-filter by per-process instance id.
+- **Transfer protocol** (`protocol.rs`, shared by LAN + Online): `GSH3` + u32-len JSON manifest → receiver u8 decision → u32-len JSON resume offsets → raw file bytes → receiver u8 final ack. `.part` files resume. Remote names sanitized (no `..`, absolute, Windows-reserved). Not compatible with pre-0.2 builds.
+- **LAN**: TCP on port 52526 (configurable).
+- **Online**: iroh 1.x QUIC, ALPNs `giga-share/3` (files), `giga-share/friend/1` (mutual friend request: `{name}` → user prompt → `{accepted,name}`), `giga-share/ping/1` (presence probe), one `Router`/`Endpoint` for the app lifetime (in `AppState.router`). Secret key in `<config>/p2p.key`. Unknown senders allowed but always prompted.
+- **Frontend**: React + framer-motion + lucide-react. Design tokens copied from the website (`docs/index.html`): Geist / Geist Mono (bundled via @fontsource), paper/ink palette, blue accent, light/dark/system theme.
+- **Direct link** (`hotspot.rs`): desktop opens a Wi-Fi hotspot (Linux `nmcli device wifi hotspot`, Windows WinRT tethering via PowerShell); phone joins via `WIFI:` QR, then normal LAN transfer. Stopped on exit.
+- **i18n**: `src/lib/i18n.tsx`, en/de/tr, default = first supported `navigator.languages`, override in Settings (`localStorage gs-lang`). Backend notifications localized via `set_language` + `desktop::text`. Backend error strings are English.
+- **Linux/NVIDIA**: `WEBKIT_DISABLE_DMABUF_RENDERER=1` set at startup when `/proc/driver/nvidia` exists (animations froze otherwise). Radar sweep is rAF-driven SVG, not CSS.
+- **Events** (backend → UI): `peers_changed`, `p2p_status`, `transfer_request`, `transfer_started`, `transfer_progress` (bytes, total, speed), `transfer_finished` (status done/rejected/failed/cancelled), `cli_send_files`, `app_error`, `friends_changed`, `friend_request`, `friend_request_closed`, `friend_answer`, `presence`. `frontend_ready` returns all initial state in one call.
 
-- `discovery.rs` — UDP LAN peer discovery
-- `transfer.rs` — TCP file transfer (LAN mode) with speed limiting
-- `p2p.rs` — iroh QUIC P2P transfer (Online mode) with speed limiting
-- `friends.rs` — Friend system CRUD, friend code encode/decode, JSON persistence
-- `speed_limiter.rs` — Token bucket AsyncRead/AsyncWrite wrapper for Mbit/s limiting
-- `state.rs` — AppSettings + AppState (settings, pending transfers, friends, P2P node ID)
+## Key Modules (src-tauri/src)
 
-## Features
+- `lib.rs` — plugin setup, command registration, exit hook
+- `state.rs` — `Settings` (JSON, atomic write), `AppState`, portable mode, defaults
+- `discovery.rs` — UDP discovery, subnet broadcast addresses via `if-addrs`
+- `protocol.rs` — transfer protocol, progress, speed limiter, cancel (`CancellationToken`)
+- `transfer.rs` — TCP server/client
+- `p2p.rs` — iroh endpoint, protocol handler, online send
+- `friends.rs` — friend code encode/decode
+- `desktop.rs` — tray, close-to-tray, single instance + `--send`/file args, notifications, context menu (Nemo/Dolphin/Nautilus on Linux, SendTo on Windows)
+- `commands.rs` — Tauri commands; Android `content://` resolution via tauri-plugin-fs
 
-- **Local Mode**: UDP discovery + TCP transfer on LAN
-- **Online Mode**: P2P to friends worldwide via iroh QUIC
-- **Friend System**: Add by friend code, rename, remove. Persistent across restarts
-- **Speed Limiting**: Configurable Mbit/s limit for both LAN and Online modes (0 = unlimited)
-- **E2E Encryption**: All online transfers encrypted via TLS 1.3 (QUIC)
-- **Cross-platform**: Windows desktop + Android mobile (Linux/macOS via CI)
-- **Transfer Resume**: V2 protocol — `.part` files, `ResumeResponse` offsets, seek-based restart
-- **OS Icons**: SVG icons per platform (Windows/macOS/Linux/Android) in discovery + friends view
-- **Concurrent Transfers**: Multiple simultaneous transfers tracked in frontend Map; badge in header
-- **QR Pairing**: `qrcode.react` display + `html5-qrcode` camera scanner for friend codes
-- **Drag & Drop**: App-level + per-peer drop targets; `tauri://drag-drop` native events
-- **Send Text**: Creates temp `.txt` file via `create_text_file` Rust command
-- **Android Share Intent**: `ACTION_SEND`/`ACTION_SEND_MULTIPLE` in `MainActivity.kt`, JNI content URI resolver
-- **Windows Send To**: Shortcut in `%APPDATA%\Microsoft\Windows\SendTo\`, `--send` CLI arg
-- **Portable Mode**: `portable.marker` next to exe → config stored beside exe in `config/`
+## Linux integration
+
+- Bundles: `.deb`, `.rpm`, `.AppImage` (`npx tauri build`). Binary name `giga-share`.
+- Tray icon (needs libayatana-appindicator), close-to-tray, autostart (`--minimized`).
+- Single instance: launching with files (`giga-share --send a b`) hands them to the running app.
+- "Send with Giga-Share" right-click entry written to `~/.local/share/{nemo/actions,kio/servicemenus,nautilus/scripts}` (setting `context_menu`, default on). AppImage uses `$APPIMAGE` as exec path.
+- Build deps: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libxdo-dev build-essential patchelf rpm`
 
 ## Build
 
+- **Linux**: `npx tauri build` → `src-tauri/target/release/bundle/{deb,rpm,appimage}/`
 - **Windows**: `npx tauri build` → `src-tauri/target/release/bundle/nsis/`
-- **Android**: Set `ANDROID_HOME`, `NDK_HOME`, `JAVA_HOME` → `npx tauri android build --apk`
+- **All from Linux**: `./build-all.sh [linux|windows|android]` → `dist-apps/`. Windows = MinGW cross-compile (`x86_64-pc-windows-gnu`, NSIS only; MSI needs a Windows host/CI). Android signed with `GIGASHARE_KEYSTORE`/`_KEY_ALIAS`/`_KEY_PASS` or the debug keystore.
+- **Android**: `src-tauri/gen/android` is committed-worthy: `MainActivity.kt` holds the share intent (copies to `cache/shared/`, appends `inbox.txt`, polled by `desktop::watch_share_inbox`) and a WifiManager MulticastLock (needed to receive discovery broadcasts). Permissions in `AndroidManifest.xml`. SDK at `~/Android/Sdk`, NDK 27.
 - **APK signing**: Must use `zipalign` + `apksigner` (not `jarsigner`) for Android 7+
-- **APK signing**: `zipalign` + `apksigner.bat` (Windows batch file — call via `cmd /c` or full path with `.bat` extension)
-- **Build outputs**: `dist-apps/Giga-Share-Setup.exe`, `dist-apps/Giga-Share.msi`, `dist-apps/Giga-Share.apk`, `dist-apps/Giga-Share-Portable/`
-- **Linux/macOS**: CI only via `.github/workflows/build-all.yml` (requires native runners)
+- **Tests**: `cargo test --manifest-path src-tauri/Cargo.toml`
+- **CI**: `.github/workflows/build-all.yml` (Linux + Windows)
 
 ## Friend Code Format
 

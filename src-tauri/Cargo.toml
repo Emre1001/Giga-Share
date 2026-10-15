@@ -1,0 +1,43 @@
+[package]
+name = "giga-share"
+version = "2.0.0"
+description = "Fast file sharing over LAN or encrypted P2P"
+authors = ["Emre1001"]
+license = "GPL-3.0"
+edition = "2021"
+
+[lib]
+name = "giga_share_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+uuid = { version = "1", features = ["v4"] }
+iroh = "1"
+hex = "0.4"
+if-addrs = "0.13"
+hostname = "0.4"
+dirs = "6"
+anyhow = "1"
+log = "0.4"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
