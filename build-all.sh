@@ -11,21 +11,22 @@ cd "$(dirname "$0")"
 OUT=dist-apps
 mkdir -p "$OUT"
 only="${1:-all}"
+V=$(node -p "require('./src-tauri/tauri.conf.json').version")
 
 if [[ $only == all || $only == linux ]]; then
   echo "── Linux"
   npx tauri build --bundles deb,rpm,appimage
   B=src-tauri/target/release/bundle
-  cp "$B"/deb/*.deb "$OUT"/Giga-Share.deb
-  cp "$B"/rpm/*.rpm "$OUT"/Giga-Share.rpm
-  cp "$B"/appimage/*.AppImage "$OUT"/Giga-Share.AppImage
+  cp "$B"/deb/Giga-Share_"$V"_amd64.deb "$OUT"/Giga-Share.deb
+  cp "$B"/rpm/Giga-Share-"$V"-1.x86_64.rpm "$OUT"/Giga-Share.rpm
+  cp "$B"/appimage/Giga-Share_"$V"_amd64.AppImage "$OUT"/Giga-Share.AppImage
 fi
 
 if [[ $only == all || $only == windows ]]; then
   echo "── Windows (x86_64-pc-windows-gnu)"
   rm -rf src-tauri/target/x86_64-pc-windows-gnu/release/bundle
   npx tauri build --target x86_64-pc-windows-gnu --bundles nsis
-  cp src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/*.exe "$OUT"/Giga-Share-Setup.exe
+  cp src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Giga-Share_"$V"_x64-setup.exe "$OUT"/Giga-Share-Setup.exe
   # Portable: exe + portable.marker keeps config next to the exe (needs the WebView2 runtime, built into Win 10/11).
   P=$(mktemp -d)/Giga-Share-Portable
   mkdir -p "$P"
