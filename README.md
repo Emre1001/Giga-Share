@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Icon.png" alt="Giga-Share Logo" width="120" height="120" style="border-radius: 24px;" />
+  <img src="docs/icon.svg" alt="Giga-Share" width="112" height="112" />
   
   # Giga-Share
 
