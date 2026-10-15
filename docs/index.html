@@ -9,7 +9,8 @@
 <meta name="color-scheme" content="light dark">
 <script>
   // Apply a saved theme before first paint; without one the page follows the system.
-  (function(){try{var t=localStorage.getItem('gs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+  (function(){try{var t=localStorage.getItem('gs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}
+  var h=document.documentElement;h.classList.add('js');setTimeout(function(){h.classList.add('ready')},2500);})();
 </script>
 <link rel="canonical" href="https://emre1001.github.io/Giga-Share/">
 <link rel="icon" type="image/png" href="favicon.png">
@@ -114,7 +115,6 @@
 
 html{scroll-behavior:smooth;scroll-padding-top:72px;-webkit-text-size-adjust:100%}
 body{
-  transition:background-color .3s,color .3s;
   font-family:var(--sans);
   background:var(--paper);
   color:var(--ink);
@@ -150,7 +150,7 @@ h1,h2,h3{font-weight:600;letter-spacing:-.035em;line-height:1.02}
   display:inline-flex;align-items:center;gap:10px;
   height:48px;padding:0 22px;border-radius:999px;
   font-size:16px;font-weight:500;letter-spacing:-.01em;text-decoration:none;
-  transition:background .2s,color .2s,transform .2s var(--ease),box-shadow .2s;
+  transition:background .2s,color .2s,transform .2s var(--ease),translate .45s var(--ease),box-shadow .2s;
   white-space:nowrap;
 }
 .btn svg{width:18px;height:18px;flex:none}
@@ -173,11 +173,16 @@ h1,h2,h3{font-weight:600;letter-spacing:-.035em;line-height:1.02}
 }
 .nav.is-stuck{border-bottom-color:var(--line)}
 .nav .wrap{display:flex;align-items:center;height:60px;gap:28px}
-.theme{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--paper-2)}
-.theme button{width:30px;height:26px;border-radius:999px;display:grid;place-items:center;color:var(--ink-3);transition:background .2s,color .2s}
-.theme button:hover{color:var(--ink)}
-.theme button[aria-checked="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 1px var(--line)}
-.theme svg{width:15px;height:15px}
+.theme{position:relative;display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--paper-2)}
+.theme .thumb{position:absolute;left:3px;top:3px;width:30px;height:26px;border-radius:999px;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.14),0 0 0 1px var(--line);transform:translateX(calc(var(--i,1)*32px));transition:transform .75s cubic-bezier(.34,1.5,.5,1)}
+:root[data-theme="light"] .theme{--i:0}
+:root[data-theme="dark"] .theme{--i:2}
+.theme button{position:relative;z-index:1;width:30px;height:26px;border-radius:999px;display:grid;place-items:center;color:var(--ink-3);transition:color .3s}
+.theme button:hover,.theme button[aria-checked="true"]{color:var(--ink)}
+.theme svg{width:15px;height:15px;transition:transform .9s cubic-bezier(.34,1.5,.5,1)}
+.theme button[data-t=light][aria-checked=true] svg{transform:rotate(90deg) scale(1.12)}
+.theme button[data-t=system][aria-checked=true] svg{transform:rotate(180deg)}
+.theme button[data-t=dark][aria-checked=true] svg{transform:rotate(-28deg) scale(1.12)}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;letter-spacing:-.02em;font-size:17px}
 .brand img{width:26px;height:26px;border-radius:7px}
 .nav-links{display:flex;gap:26px;margin-left:auto;font-size:14px}
@@ -215,6 +220,8 @@ h1,h2,h3{font-weight:600;letter-spacing:-.035em;line-height:1.02}
 .stage{position:relative;margin-top:clamp(48px,7vw,88px);padding-bottom:clamp(40px,6vw,72px)}
 .win{
   position:relative;
+  transform-origin:50% 0;
+  transform:perspective(1800px) rotateX(calc((1 - var(--p,1)) * 10deg)) translateY(calc((1 - var(--p,1)) * 36px)) scale(calc(.955 + var(--p,1) * .045));
   background:#0d0e12;color:#e9e9ee;
   border-radius:14px;
   box-shadow:0 0 0 1px var(--win-ring),0 1px 0 rgba(255,255,255,.06) inset,0 50px 100px -40px rgba(12,20,50,.45),0 20px 40px -20px rgba(0,0,0,.35);
@@ -266,6 +273,7 @@ h1,h2,h3{font-weight:600;letter-spacing:-.035em;line-height:1.02}
 
 .phone{
   position:absolute;right:-2%;bottom:0;width:18%;min-width:150px;
+  translate:0 calc((1 - var(--p,1)) * 90px);animation:float 7s ease-in-out infinite;
   aspect-ratio:9/19;background:#0d0e12;border-radius:30px;
   border:7px solid #1b1c20;box-shadow:0 40px 80px -30px rgba(12,20,50,.55);
   padding:28px 12px 12px;color:#e9e9ee;display:flex;flex-direction:column;gap:10px;
@@ -371,7 +379,7 @@ section{position:relative}
 }
 
 /* ─── Calculator ─── */
-.calc{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:clamp(22px,4vw,48px);display:grid;grid-template-columns:320px 1fr;gap:clamp(28px,5vw,64px)}
+.calc{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:clamp(22px,4vw,48px);display:grid;grid-template-columns:320px 1fr;gap:clamp(28px,5vw,64px)}
 .calc-in h3{font-size:22px;letter-spacing:-.02em;margin-bottom:6px}
 .chips{display:flex;flex-direction:column;gap:6px;margin:22px 0}
 .chip{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:15px;transition:border-color .2s,background .2s}
@@ -521,7 +529,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:0;border-radiu
 /* ─── Security ─── */
 .sec-quote{font-size:clamp(32px,4.6vw,60px);letter-spacing:-.04em;line-height:1.06;font-weight:600;max-width:20ch}
 .sec-quote span{color:var(--ink-3)}
-.path{margin-top:clamp(56px,8vw,96px);display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink)}
+.path{margin-top:clamp(56px,8vw,96px);display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);position:relative}
 .path > div{padding:24px 28px 0 0}
 .path > div + div{padding-left:28px;border-left:1px solid var(--line)}
 .path .k{font-family:var(--mono);font-size:12.5px;color:var(--ink-3);margin-bottom:28px}
@@ -568,9 +576,10 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:0;border-radiu
 .faq details:last-child{border-bottom:1px solid var(--line-2)}
 .faq summary{list-style:none;cursor:pointer;padding:22px 40px 22px 0;font-size:19px;font-weight:500;letter-spacing:-.015em;position:relative}
 .faq summary::-webkit-details-marker{display:none}
-.faq summary::after{content:"";position:absolute;right:6px;top:50%;width:12px;height:12px;margin-top:-8px;border-right:1.5px solid var(--ink-2);border-bottom:1.5px solid var(--ink-2);transform:rotate(45deg);transition:transform .3s var(--ease)}
-.faq details[open] summary::after{transform:rotate(-135deg);margin-top:-2px}
-.faq details p{padding:0 40px 24px 0;color:var(--ink-2);font-size:16px;max-width:62ch}
+.faq summary::after{content:"";position:absolute;right:6px;top:50%;width:12px;height:12px;margin-top:-8px;border-right:1.5px solid var(--ink-2);border-bottom:1.5px solid var(--ink-2);transform:rotate(45deg);transition:transform .5s var(--ease)}
+.faq details[open] summary::after{transform:translateY(6px) rotate(-135deg)}
+.faq details.closing summary::after{transform:rotate(45deg)}
+.faq details p{overflow:hidden;padding:0 40px 24px 0;color:var(--ink-2);font-size:16px;max-width:62ch}
 .faq details p code{font-family:var(--mono);font-size:.9em;background:var(--paper-2);padding:1px 6px;border-radius:5px}
 @media (max-width:860px){.faq{grid-template-columns:1fr}}
 
@@ -591,15 +600,71 @@ footer a:hover{color:var(--ink)}
 .rv.in{opacity:1;transform:none}
 .no-js .rv{opacity:1;transform:none}
 
+
+/* ─── Motion ─── */
+.progress{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;background:var(--blue);transform-origin:0 50%;transform:scaleX(0);pointer-events:none}
+.nav{animation:navin 1s var(--ease) both}
+@keyframes navin{from{transform:translateY(-100%);opacity:0}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+
+/* headline words rise out of a mask */
+.js:not(.ready) .split{visibility:hidden}
+.split .w{display:inline-block;overflow:hidden;vertical-align:top;padding:.12em .04em .16em;margin:-.12em -.04em -.16em}
+.split .w>span{display:inline-block;transform:translateY(118%);transition:transform 1.2s var(--ease);transition-delay:calc(var(--i) * 65ms)}
+.split.in .w>span{transform:none}
+.js .rise{opacity:0;transform:translateY(18px)}
+.js.ready .rise{opacity:1;transform:none;transition:opacity 1s var(--ease) var(--d,0ms),transform 1.2s var(--ease) var(--d,0ms)}
+
+/* words light up while scrolling */
+.scrub .sw{opacity:.18}
+
+/* line that draws itself */
+.path::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform 1.8s var(--ease)}
+.path.in::before,.no-js .path::before{transform:none}
+
+/* cards: lift + cursor spotlight */
+.tile>*,.dl>*,.calc>*{position:relative}
+.tile::before,.dl::before,.calc::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .5s;background:radial-gradient(480px circle at var(--mx,50%) var(--my,50%),var(--blue-soft),transparent 62%)}
+.tile.rv,.dl.rv{transition:opacity .9s var(--ease),transform .9s var(--ease),translate .55s var(--ease),border-color .3s,box-shadow .6s}
+@media (hover:hover){
+  .tile:hover::before,.dl:hover::before,.calc:hover::before{opacity:1}
+  .tile:hover,.dl:hover{translate:0 -5px;border-color:var(--line-2);box-shadow:0 28px 50px -30px rgba(0,0,0,.4)}
+  .dl.rec:hover{border-color:var(--blue)}
+}
+
+/* small looping scenes inside the tiles */
+@keyframes menu{0%{opacity:0;transform:translateY(8px) scale(.97)}9%,84%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-4px)}}
+.ctx .m{animation:menu 7s var(--ease) infinite backwards}
+.ctx .m2{animation-delay:.9s}
+@keyframes sheet{0%{transform:translateY(60%)}14%,86%{transform:none}96%,100%{transform:translateY(60%)}}
+.sheet{animation:sheet 6s var(--ease) infinite}
+@keyframes halo{0%{box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--blue),0 0 0 5px var(--blue-soft)}100%{box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--blue),0 0 0 20px transparent}}
+.sheet .me img{animation:halo 2.2s ease-out infinite}
+@keyframes tap{0%,70%,100%{transform:none}76%{transform:scale(.93)}84%{transform:none}}
+.incoming .act span.y{animation:tap 5s var(--ease) infinite}
+
+/* theme change: round reveal from the switch, with a soft edge */
+@property --vt-r{syntax:'<length>';inherits:true;initial-value:0px}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal;transform-origin:var(--vt-x,50%) var(--vt-y,50%)}
+::view-transition-new(root){
+  -webkit-mask-image:radial-gradient(circle at var(--vt-x,50%) var(--vt-y,50%),#000 calc(var(--vt-r) - var(--vt-f,160px)),transparent var(--vt-r));
+  mask-image:radial-gradient(circle at var(--vt-x,50%) var(--vt-y,50%),#000 calc(var(--vt-r) - var(--vt-f,160px)),transparent var(--vt-r));
+}
+.vt-run *:not(.thumb):not(.theme svg),.vt-run *::before,.vt-run *::after{transition:none!important}
+.theme-fade *,.theme-fade *::before,.theme-fade *::after{transition:background-color .7s ease,color .7s ease,border-color .7s ease,fill .7s ease,stroke .7s ease,box-shadow .7s ease!important}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   html{scroll-behavior:auto}
   .rv{opacity:1;transform:none}
   .chap{opacity:1}
+  .rise{opacity:1!important;transform:none!important}
+  .path::before{transform:none}
 }
 </style>
 </head>
 <body class="no-js">
+<div class="progress" id="progress" aria-hidden="true"></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-win" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5.1 10.4 4v7.2H3V5.1Zm8.4-1.2L21 2.5v8.7h-9.6V3.9ZM3 12.8h7.4V20L3 18.9v-6.1Zm8.4 0H21v8.7l-9.6-1.4v-7.3Z"/></symbol>
@@ -625,6 +690,7 @@ footer a:hover{color:var(--ink)}
       <a href="#fragen">Fragen</a>
     </nav>
     <div class="theme" role="radiogroup" aria-label="Farbschema">
+      <span class="thumb" aria-hidden="true"></span>
       <button type="button" role="radio" data-t="light" aria-checked="false" aria-label="Hell" title="Hell"><svg><use href="#i-sun"/></svg></button>
       <button type="button" role="radio" data-t="system" aria-checked="true" aria-label="Wie System" title="Wie System"><svg><use href="#i-auto"/></svg></button>
       <button type="button" role="radio" data-t="dark" aria-checked="false" aria-label="Dunkel" title="Dunkel"><svg><use href="#i-moon"/></svg></button>
@@ -639,16 +705,16 @@ footer a:hover{color:var(--ink)}
 <!-- ═════════ HERO ═════════ -->
 <section class="hero">
   <div class="wrap">
-    <p class="eyebrow"><span><b>●</b> <span id="ver-label">Version 1.2</span></span><span>Windows · Android</span><span>Open Source</span></p>
+    <p class="eyebrow rise" style="--d:0ms"><span><b>●</b> <span id="ver-label">Version 1.2</span></span><span>Windows · Android</span><span>Open Source</span></p>
     <div class="hero-top">
-      <h1>Direkt<br>rüber<span class="dot">.</span></h1>
+      <h1 class="split">Direkt<br>rüber<span class="dot">.</span></h1>
       <div class="hero-copy">
-        <p class="lede">Giga-Share schickt Dateien von deinem Gerät direkt auf ein anderes. Im selben WLAN oder quer über die Welt. Ohne Cloud dazwischen, ohne Konto, ohne Größengrenze.</p>
-        <div class="hero-actions">
+        <p class="lede rise" style="--d:380ms">Giga-Share schickt Dateien von deinem Gerät direkt auf ein anderes. Im selben WLAN oder quer über die Welt. Ohne Cloud dazwischen, ohne Konto, ohne Größengrenze.</p>
+        <div class="hero-actions rise" style="--d:520ms">
           <a class="btn btn-primary js-dl-main" href="#download"><svg><use href="#i-win"/></svg><span>Für Windows laden</span></a>
           <a class="btn btn-ghost js-dl-all" href="#download">Alle Downloads <svg class="chev" style="width:14px;height:14px"><use href="#i-chev"/></svg></a>
         </div>
-        <p class="hero-meta js-dl-meta">Kostenlos · MIT-Lizenz · Windows 10/11, Android 8+</p>
+        <p class="hero-meta js-dl-meta rise" style="--d:640ms">Kostenlos · MIT-Lizenz · Windows 10/11, Android 8+</p>
       </div>
     </div>
 
@@ -745,7 +811,7 @@ footer a:hover{color:var(--ink)}
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow"><b>01</b> &nbsp;So geht's</p>
-      <h2 class="h-sec rv">Zwei Wege.<br>Ein Knopf.</h2>
+      <h2 class="h-sec split">Zwei Wege.<br>Ein Knopf.</h2>
       <p class="lede rv">Im selben Netz findet Giga-Share andere Geräte von selbst. Alles andere erreichst du über Freunde – egal, wo sie gerade sind.</p>
     </div>
 
@@ -893,7 +959,7 @@ footer a:hover{color:var(--ink)}
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow"><b>02</b> &nbsp;Tempo</p>
-      <h2 class="h-sec rv">Einmal statt zweimal.</h2>
+      <h2 class="h-sec split">Einmal statt zweimal.</h2>
       <p class="lede rv">Über die Cloud wandert jede Datei zweimal durchs Internet: hoch und wieder runter. Giga-Share schickt sie einmal – im WLAN sogar ganz ohne Internet.</p>
     </div>
 
@@ -932,7 +998,7 @@ footer a:hover{color:var(--ink)}
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow"><b>03</b> &nbsp;Funktionen</p>
-      <h2 class="h-sec rv">Da, wo du sowieso bist.</h2>
+      <h2 class="h-sec split">Da, wo du sowieso bist.</h2>
       <p class="lede rv">Giga-Share hängt sich in die Stellen ein, die du ohnehin benutzt: das Teilen-Menü am Handy, das Rechtsklick-Menü unter Windows, Drag &amp; Drop.</p>
     </div>
 
@@ -1046,9 +1112,9 @@ footer a:hover{color:var(--ink)}
     <div class="fc">
       <div>
         <p class="eyebrow" style="margin-bottom:20px"><b>04</b> &nbsp;Freunde</p>
-        <h2 class="h-sec rv" style="max-width:11ch">Dein Code ist deine Adresse.</h2>
+        <h2 class="h-sec split" style="max-width:11ch">Dein Code ist deine Adresse.</h2>
         <p class="lede rv" style="margin-top:24px">Kein Konto, keine Telefonnummer, keine E-Mail. Jedes Gerät hat einen eigenen Schlüssel. Daraus wird dein Freundescode – zum Weitergeben per Chat oder QR.</p>
-        <ul class="fc-points rv">
+        <ul class="fc-points">
           <li><span>01</span><span><b>Einmal hinzufügen,</b> für immer in der Liste. Umbenennen oder entfernen, wann du willst.</span></li>
           <li><span>02</span><span><b>Der Code ist öffentlich.</b> Er sagt, wohin – nicht, was. Mitlesen kann damit niemand.</span></li>
           <li><span>03</span><span><b>Über Ländergrenzen,</b> durch Router und Mobilfunk. Die App sucht sich den Weg.</span></li>
@@ -1073,9 +1139,9 @@ footer a:hover{color:var(--ink)}
 <section class="sec" id="sicherheit">
   <div class="wrap">
     <p class="eyebrow" style="margin-bottom:28px"><b>05</b> &nbsp;Sicherheit</p>
-    <p class="sec-quote rv">Wir können deine Dateien nicht sehen. <span>Nicht, weil wir's versprechen – sondern weil sie nie bei uns ankommen.</span></p>
+    <p class="sec-quote scrub">Wir können deine Dateien nicht sehen. <span>Nicht, weil wir's versprechen – sondern weil sie nie bei uns ankommen.</span></p>
 
-    <div class="path">
+    <div class="path draw">
       <div class="rv">
         <div class="k">Auf deinem Gerät</div>
         <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="19" width="26" height="19" rx="4"/><path d="M15 19v-5a7 7 0 0 1 14 0v5"/><circle cx="22" cy="28.5" r="2.2" fill="currentColor"/></svg>
@@ -1108,7 +1174,7 @@ footer a:hover{color:var(--ink)}
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow"><b>06</b> &nbsp;Download</p>
-      <h2 class="h-sec rv">Hol's dir.</h2>
+      <h2 class="h-sec split">Hol's dir.</h2>
       <p class="lede rv">Kostenlos und quelloffen. Installiere es auf zwei Geräten, und du bist startklar.</p>
     </div>
 
@@ -1154,7 +1220,7 @@ footer a:hover{color:var(--ink)}
   <div class="wrap faq">
     <div>
       <p class="eyebrow" style="margin-bottom:20px"><b>07</b> &nbsp;Fragen</p>
-      <h2 class="h-sec rv" style="font-size:clamp(40px,5vw,64px)">Kurz gefragt.</h2>
+      <h2 class="h-sec split" style="font-size:clamp(40px,5vw,64px)">Kurz gefragt.</h2>
     </div>
     <div>
       <details><summary>Muss ich mich irgendwo anmelden?</summary><p>Nein. Es gibt kein Konto und keinen Server von uns. Im Heimnetz findest du Geräte automatisch, für alles andere reicht der Freundescode.</p></details>
@@ -1169,7 +1235,7 @@ footer a:hover{color:var(--ink)}
 
 <section class="final">
   <div class="wrap">
-    <h2 class="rv">Direkt<br>rüber<span class="dot">.</span></h2>
+    <h2 class="split">Direkt<br>rüber<span class="dot">.</span></h2>
     <div class="hero-actions rv">
       <a class="btn btn-primary js-dl-main" href="#download"><svg><use href="#i-win"/></svg><span>Für Windows laden</span></a>
       <a class="btn btn-ghost" href="https://github.com/Emre1001/Giga-Share" rel="noopener">Quellcode ansehen <svg class="chev" style="width:14px;height:14px"><use href="#i-chev"/></svg></a>
@@ -1264,23 +1330,51 @@ footer a:hover{color:var(--ink)}
     })
     .catch(() => {});
 
-  /* ── Theme switch: light / system / dark ── */
+  /* ── Theme switch: light / system / dark, round reveal from the switch ── */
   const root = document.documentElement;
   const sysDark = matchMedia('(prefers-color-scheme: dark)');
   const themeMeta = $('meta[name=theme-color]');
   const themeBtns = $$('.theme button');
-  const syncMeta = () => {
-    const t = root.getAttribute('data-theme') || (sysDark.matches ? 'dark' : 'light');
-    themeMeta.setAttribute('content', t === 'dark' ? '#0a0a0c' : '#f5f5f2');
-  };
-  const setTheme = t => {
+  const ORDER = ['light', 'system', 'dark'];
+  const effective = () => root.getAttribute('data-theme') || (sysDark.matches ? 'dark' : 'light');
+  const syncMeta = () => themeMeta.setAttribute('content', effective() === 'dark' ? '#0a0a0c' : '#f5f5f2');
+  const applyTheme = t => {
     if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
     try { t === 'system' ? localStorage.removeItem('gs-theme') : localStorage.setItem('gs-theme', t); } catch (e) {}
-    themeBtns.forEach(b => b.setAttribute('aria-checked', b.dataset.t === t));
+    themeBtns.forEach(b => { const on = b.dataset.t === t; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
     syncMeta();
   };
-  themeBtns.forEach(b => b.addEventListener('click', () => setTheme(b.dataset.t)));
-  setTheme(root.getAttribute('data-theme') || 'system');
+  const setTheme = (t, from) => {
+    const after = t === 'system' ? (sysDark.matches ? 'dark' : 'light') : t;
+    if (!from || reduce || effective() === after) return applyTheme(t);
+    if (!document.startViewTransition) {
+      root.classList.add('theme-fade'); applyTheme(t);
+      return setTimeout(() => root.classList.remove('theme-fade'), 800);
+    }
+    const r = from.getBoundingClientRect();
+    const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+    const feather = Math.round(Math.min(innerWidth, innerHeight) * .24);
+    const reach = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + feather;
+    root.style.setProperty('--vt-x', x + 'px'); root.style.setProperty('--vt-y', y + 'px'); root.style.setProperty('--vt-f', feather + 'px');
+    root.classList.add('vt-run');
+    const vt = document.startViewTransition(() => applyTheme(t));
+    vt.ready.then(() => {
+      const o = { duration: 1200, easing: 'cubic-bezier(.65,0,.2,1)', fill: 'forwards' };
+      root.animate({ '--vt-r': ['0px', reach + 'px'] }, { ...o, pseudoElement: '::view-transition-new(root)' });
+      root.animate({ transform: ['scale(1)', 'scale(1.035)'], filter: ['blur(0px)', 'blur(3px)'] }, { ...o, pseudoElement: '::view-transition-old(root)' });
+    }).catch(() => {});
+    vt.finished.finally(() => root.classList.remove('vt-run'));
+  };
+  themeBtns.forEach(b => b.addEventListener('click', () => setTheme(b.dataset.t, b)));
+  $('.theme').addEventListener('keydown', e => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const cur = themeBtns.findIndex(b => b.getAttribute('aria-checked') === 'true');
+    const next = themeBtns[(cur + d + 3) % 3];
+    next.focus(); setTheme(next.dataset.t, next);
+  });
+  applyTheme(root.getAttribute('data-theme') || 'system');
   sysDark.addEventListener('change', syncMeta);
 
   /* ── Nav border ── */
@@ -1288,11 +1382,112 @@ footer a:hover{color:var(--ink)}
   const onScroll = () => nav.classList.toggle('is-stuck', scrollY > 8);
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
-  /* ── Reveal ── */
+  /* ── Motion: split headlines, reveal, scroll-linked effects ── */
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const splitWords = (el, cls) => {
+    let k = 0;
+    const walk = node => [...node.childNodes].forEach(n => {
+      if (n.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        n.textContent.split(/(\s+)/).forEach(part => {
+          if (!part) return;
+          if (/^\s+$/.test(part)) return frag.appendChild(document.createTextNode(part));
+          const w = document.createElement('span'); w.className = cls; w.style.setProperty('--i', k++);
+          if (cls === 'w') { const inner = document.createElement('span'); inner.textContent = part; w.appendChild(inner); }
+          else w.textContent = part;
+          frag.appendChild(w);
+        });
+        n.replaceWith(frag);
+      } else if (n.nodeType === 1 && n.tagName !== 'BR') walk(n);
+    });
+    walk(el);
+  };
+  const heroH1 = $('.hero h1');
+  const scrubEl = $('.scrub');
+  if (!reduce) {
+    $$('.split').forEach(el => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = el.innerHTML.replace(/<br\s*\/?>/gi, ' ');
+      el.setAttribute('aria-label', tmp.textContent.replace(/\s+/g, ' ').trim());
+      splitWords(el, 'w');
+    });
+    if (scrubEl) splitWords(scrubEl, 'sw');
+  }
+  const scrubWords = scrubEl ? $$('.sw', scrubEl) : [];
+
   const io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    if (!e.isIntersecting) return;
+    const el = e.target;
+    el.classList.add('in'); io.unobserve(el);
+    setTimeout(() => { el.style.transitionDelay = ''; }, 1800);
   }), { rootMargin: '0px 0px -8% 0px' });
-  $$('.rv').forEach((el, i) => { el.style.transitionDelay = (i % 3) * 70 + 'ms'; io.observe(el); });
+  $$('.facts li,.fc-points li,.faq details,.dl-notes div').forEach(el => el.classList.add('rv'));
+  $$('.rv').forEach(el => {
+    const idx = [...el.parentElement.children].filter(c => c.classList.contains('rv')).indexOf(el);
+    el.style.transitionDelay = Math.min(idx, 5) * 80 + 'ms';
+    io.observe(el);
+  });
+  $$('.split,.draw').forEach(el => { if (el !== heroH1) io.observe(el); });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    root.classList.add('ready');
+    if (heroH1) heroH1.classList.add('in');
+  }));
+
+  const progress = $('#progress'), stageEl = $('.stage');
+  let queued = false;
+  const scrollFrame = () => {
+    queued = false;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    progress.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+    if (reduce) return;
+    const sr = stageEl.getBoundingClientRect();
+    if (sr.bottom > -200) stageEl.style.setProperty('--p', clamp((innerHeight * .98 - sr.top) / (innerHeight * .62), 0, 1).toFixed(3));
+    if (scrubWords.length) {
+      const r = scrubEl.getBoundingClientRect();
+      const p = clamp((innerHeight * .88 - r.top) / (innerHeight * .5 + r.height * .5), 0, 1);
+      const n = scrubWords.length;
+      scrubWords.forEach((w, i) => { w.style.opacity = (.18 + .82 * clamp((p * (n + 3) - i) / 3, 0, 1)).toFixed(3); });
+    }
+  };
+  const queue = () => { if (!queued) { queued = true; requestAnimationFrame(scrollFrame); } };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', queue);
+  scrollFrame();
+
+  if (!reduce && matchMedia('(hover: hover)').matches) {
+    $$('.tile,.dl,.calc').forEach(el => el.addEventListener('pointermove', e => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', e.clientX - r.left + 'px'); el.style.setProperty('--my', e.clientY - r.top + 'px');
+    }));
+    $$('.js-dl-main,.nav-cta').forEach(b => {
+      b.addEventListener('pointermove', e => {
+        const r = b.getBoundingClientRect();
+        b.style.translate = `${(e.clientX - r.left - r.width / 2) * .22}px ${(e.clientY - r.top - r.height / 2) * .32}px`;
+      });
+      b.addEventListener('pointerleave', () => { b.style.translate = ''; });
+    });
+  }
+
+  if (!reduce) $$('.faq details').forEach(d => {
+    const p = $('p', d);
+    $('summary', d).addEventListener('click', e => {
+      e.preventDefault();
+      const wasClosing = d.classList.contains('closing');
+      if (d._a) d._a.cancel();
+      const o = { duration: 520, easing: 'cubic-bezier(.2,.7,.1,1)' };
+      if (!d.open || wasClosing) {
+        d.classList.remove('closing'); d.open = true;
+        const h = p.offsetHeight;
+        d._a = p.animate([{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }], o);
+        d._a.onfinish = () => { d._a = null; };
+      } else {
+        d.classList.add('closing');
+        const h = p.offsetHeight;
+        d._a = p.animate([{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], o);
+        d._a.onfinish = () => { d.open = false; d.classList.remove('closing'); d._a = null; };
+      }
+    });
+  });
 
   /* ── Hero mock transfer ── */
   const JOBS = [
@@ -1393,13 +1588,25 @@ footer a:hover{color:var(--ink)}
   ];
   const race = $$('#race li');
   let raceTimer;
+  const tween = (el, v1, fmt) => {
+    const v0 = el._v ?? 0; el._v = v1;
+    cancelAnimationFrame(el._r);
+    if (reduce) { el.textContent = fmt(v1); return; }
+    const t0 = performance.now();
+    const step = t => {
+      const k = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - k, 4);
+      el.textContent = fmt(v0 + (v1 - v0) * e);
+      if (k < 1) el._r = requestAnimationFrame(step);
+    };
+    el._r = requestAnimationFrame(step);
+  };
   function calc(bytes, label) {
-    $('#c-size').textContent = gb(bytes);
+    tween($('#c-size'), bytes, gb);
     $('#c-name').textContent = label;
     const ts = LINES.map(f => f(bytes));
     const max = Math.max(...ts);
     race.forEach((li, i) => {
-      li.querySelector('.tm').textContent = fmtT(ts[i]);
+      tween(li.querySelector('.tm'), ts[i], fmtT);
       const bar = li.querySelector('.track i');
       bar.style.transition = 'none';
       bar.style.width = '0';
