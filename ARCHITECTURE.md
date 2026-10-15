@@ -1,35 +1,20 @@
-# Nebula Share Protocol Specification (v1.0)
+# Giga-Share protocol (v3, since 0.2.0)
 
-This document describes the underlying communication protocol used by Nebula Share for discovery and file transfer.
+## Discovery (UDP 52525)
+Broadcast every 2 s to 255.255.255.255 and every interface's subnet broadcast:
 
-## 1. Discovery (UDP)
-- **Port**: 52525
-- **Mechanism**: UDP Broadcast
-- **Frequency**: Every 5 seconds
-- **Payload Format**: `NEBULA_HELLO:<DEVICE_NAME>`
-- **Behavior**: When a device receives a `NEBULA_HELLO` from an IP not in its local peer list, it adds it and displays it in the UI.
+    GIGASHARE_V3:{instance_id}|{device_name}|{device_type}|{tcp_port}|{os_type}
 
-## 2. Transfer Handshake (TCP)
-- **Port**: 52526
-- **Step 1 (Manifest)**:
-    - Sender connects to Receiver.
-    - Sender sends 4 bytes (Big-Endian `u32`) representing the length of the JSON manifest.
-    - Sender sends the JSON manifest.
-- **Manifest Schema**:
-```json
-{
-  "files": [
-    { "name": "video.mp4", "size": 1073741824, "is_dir": false }
-  ],
-  "total_size": 1073741824
-}
-```
+On exit: `GIGASHARE_BYE:{instance_id}`. Peers not heard from for 7 s are dropped.
 
-## 3. Data Transfer
-- **Binary Stream**: Direct TCP stream after the manifest.
-- **Chunking**: Files are read/written in 64KB buffers to minimize memory overhead while maintaining throughput.
-- **Parallelism**: Multiple TCP connections can be established to increase throughput on high-latency networks (optional implementation).
+## Transfer (TCP 52526 for LAN, iroh QUIC bi-stream with ALPN `giga-share/3` for Online)
 
-## 4. UI/UX Philosophy
-- **Nebula Design**: Uses a dark-mode palette with semi-transparent "glass" panels.
-- **Animations**: Uses `framer-motion` for layout transitions and `recharts` for the live bandwidth graph.
+    sender   → "GSH3" | u32 BE len | JSON {sender_name, sender_os, files:[{name, size}], total_size}
+    receiver → u8 decision (1 accept / 0 reject)
+    receiver → u32 BE len | JSON [resume offset per file]
+    sender   → file bytes from each offset, in manifest order; then half-close
+    receiver → u8 1 when every file is on disk
+
+`name` is a relative path with `/`. The receiver sanitizes it, writes `<name>.part`,
+and renames to a free name (`file (1).ext`) when complete. An existing `.part` no longer
+than the file is resumed from its length.

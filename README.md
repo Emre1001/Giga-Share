@@ -34,14 +34,16 @@
 ### Two Modes
 - **LAN Mode** — Auto-discover devices on same WiFi, transfer via TCP
 - **Online Mode** — Send to friends anywhere via encrypted P2P (QUIC)
-- Switch modes with one toggle in settings
+- **Direct link** — no shared Wi-Fi? The computer opens a hotspot, the phone joins by QR
+- Switch modes with one toggle
 
 </td>
 <td width="50%">
 
 ### Friend System
-- Add friends by sharing your unique Friend Code
-- **QR code pairing** — show your QR or scan a friend's with the camera
+- Add friends by code, QR or **one tap on a nearby device**
+- Friend **requests** — accepting adds both sides
+- **Online status** for every friend
 - Rename or remove friends anytime
 - Friends list persists across app restarts
 
@@ -73,17 +75,18 @@
 
 ### OS Integration
 - **Android share sheet** — "Share with Giga-Share" from any app
-- **Windows Send To** — right-click any file → Send to → Giga-Share
+- **Right-click send** — Windows Send To, Linux Nemo / Dolphin / Nautilus
 - **Drag & drop** — drag files onto a device to send
 - **Send Text** — share text/URLs directly as a `.txt` file
-- Minimize to tray, start on boot
+- Tray, start on boot, desktop notifications
+- **Deutsch, English, Türkçe** — follows the system language
 
 </td>
 <td width="50%">
 
 ### Discovery
 - Auto-discovers devices on local network
-- Animated radar with **OS-specific icons** (Windows / macOS / Linux / Android)
+- Animated radar with **OS-specific icons** (Windows / macOS / Linux / Android), light & dark
 - Tap to send, one interaction
 - Portrait & landscape responsive — works at 360 px wide
 
@@ -109,7 +112,7 @@
 └──────────────┘                        └──────────────┘
 ```
 
-1. **Discovery** — Devices broadcast `GIGASHARE_V2:{name}|{type}|{port}|{os}` via UDP on port `52525`
+1. **Discovery** — Devices broadcast `GIGASHARE_V3:{id}|{name}|{type}|{port}|{os}|{p2p_id}` via UDP on port `52525`
 2. **Selection** — Tap a device on the radar (or drag files onto it)
 3. **Handshake** — Receiver gets transfer request; sends ACK + resume offsets
 4. **Transfer** — Files stream over TCP, written to `.part` files, renamed on completion
@@ -138,28 +141,33 @@
 
 ## Installation
 
+Download from the [latest release](https://github.com/Emre1001/Giga-Share/releases/latest) or the [website](https://emre1001.github.io/Giga-Share/).
+
+> **Version 2 is a rewrite.** Its protocol is not compatible with 1.x — update every device.
+
 ### Windows
 
-Download from `dist-apps/`:
-- **`Giga-Share-Setup.exe`** — NSIS Installer
-- **`Giga-Share.msi`** — MSI Installer
-- **`Giga-Share-Portable/Giga-Share.exe`** — No install needed; config stored next to `.exe`
+- **`Giga-Share-Setup.exe`** — installer
+- **`Giga-Share-Portable.zip`** — unzip and run; `portable.marker` keeps the config next to the `.exe`
 
-**Windows Send To** (optional): Open Settings → enable "Send To Menu" → right-click any file → Send to → Giga-Share.
+"Send with Giga-Share" is added to the Explorer **Send To** menu (Settings → System).
+
+### Linux
+
+```bash
+sudo apt install ./Giga-Share.deb      # Debian, Ubuntu, Mint
+sudo dnf install ./Giga-Share.rpm      # Fedora
+chmod +x Giga-Share.AppImage && ./Giga-Share.AppImage   # anywhere
+```
+
+Tray icon, autostart, desktop notifications and a **"Send with Giga-Share"** right-click entry in Nemo, Dolphin and Nautilus.
 
 ### Android
 
-1. Download **`Giga-Share.apk`**
-2. Enable "Install from unknown sources" in phone settings
-3. Install the APK
-4. Use "Share" in any app to share directly via Giga-Share
+1. Download **`Giga-Share.apk`**, allow installing from your browser, install
+2. Use **Share → Giga-Share** in any app
 
-### Linux / macOS
-
-Build from source or trigger CI (see below).
-
-> **LAN Mode**: Both devices must be on the **same WiFi network**.  
-> **Online Mode**: Works from anywhere — just add your friend's code.
+> **LAN mode**: devices on the same network. **Direct link**: no shared Wi-Fi — the computer opens its own hotspot, the phone scans the QR. **Online mode**: anywhere, via friend code.
 
 <br />
 
@@ -171,109 +179,41 @@ Build from source or trigger CI (see below).
 |------|---------|
 | [Node.js](https://nodejs.org/) | 20+ |
 | [Rust](https://rustup.rs/) | stable |
-| [Tauri CLI](https://v2.tauri.app/) | 2.x |
-| Android SDK + NDK 27 | For APK builds |
-| JDK 17 | For APK builds |
+| Linux build deps | `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libxdo-dev patchelf rpm` |
+| Windows cross-build (from Linux) | `mingw-w64 nsis`, `rustup target add x86_64-pc-windows-gnu` |
+| Android | JDK 17, Android SDK + NDK 27, `rustup target add aarch64-linux-android armv7-linux-androideabi` |
 
-### Windows
-
-```bash
-npm install
-npx tauri build
-# Output: src-tauri/target/release/bundle/nsis/  +  /msi/
-```
-
-### Android
+### Everything from one Linux machine
 
 ```bash
 npm install
-npx tauri android build --apk
-
-# Sign (Windows — apksigner is a .bat file):
-%ANDROID_HOME%\build-tools\37.0.0\zipalign.exe -v 4 app-unsigned.apk aligned.apk
-cmd /c "%ANDROID_HOME%\build-tools\37.0.0\apksigner.bat" sign ^
-  --ks your-keystore.jks --ks-pass pass:password ^
-  --ks-key-alias key-alias --key-pass pass:password ^
-  --out Giga-Share.apk aligned.apk
+./build-all.sh            # or: ./build-all.sh linux | windows | android
+# Output: dist-apps/
 ```
 
-### Linux / macOS (GitHub Actions CI)
+APK signing uses `GIGASHARE_KEYSTORE`, `GIGASHARE_KEY_ALIAS`, `GIGASHARE_KEY_PASS` (falls back to the Android debug keystore).
 
-Push a `v*` tag to trigger all platform builds:
+### CI
 
-```bash
-git tag v1.0.0 && git push origin v1.0.0
-```
-
-Workflow: `.github/workflows/build-all.yml` — produces `.AppImage`, `.deb` (Linux) and `.dmg`, `.app` (macOS).
-
-Or trigger manually from the GitHub Actions tab (`workflow_dispatch`).
+`.github/workflows/build-all.yml` builds Linux and Windows (incl. `.msi`) on every `v*` tag.
 
 ### Development
 
 ```bash
 npm install
 npx tauri dev
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
-
-<br />
-
-## Tech Stack
-
-<div align="center">
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19 + TypeScript + Framer Motion + Recharts |
-| **Backend** | Rust + Tokio (async) |
-| **Framework** | Tauri v2 |
-| **P2P / Online** | iroh 0.32 (QUIC + NAT traversal + E2E encryption) |
-| **LAN Discovery** | UDP Broadcast V2 (name, type, port, OS) |
-| **LAN Transfer** | TCP — manifest → ACK → resume offsets → data |
-| **Online Transfer** | QUIC bidirectional streams (same protocol) |
-| **Speed Limiting** | Token bucket rate limiter (AsyncRead/AsyncWrite) |
-| **QR Pairing** | qrcode.react (display) + html5-qrcode (camera scan) |
-| **Icons** | Lucide React + custom OS SVG icons |
-
-</div>
 
 <br />
 
 ## Protocol
 
-### Discovery (UDP V2 — LAN Mode)
+See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-```
-GIGASHARE_V2:{device_name}|{device_type}|{port}|{os_type}
-```
-- Broadcast every 3 seconds on port `52525`
-- `device_type`: `"mobile"` or `"desktop"`
-- `os_type`: `"windows"` / `"macos"` / `"linux"` / `"android"` / `"ios"`
-- Backward-compatible: `GIGASHARE_V1:…` (3 fields) also accepted
-- Peers timeout after 15 seconds of silence
-
-### Transfer (TCP / QUIC — V2 Protocol)
-
-```
-Sender → Receiver: [4-byte len][manifest JSON]
-Receiver → Sender: [1 byte: 0=reject, 1=accept]
-Receiver → Sender: [4-byte len][ResumeResponse JSON]   ← offsets per file
-Sender → Receiver: [raw bytes, seeked to resume offset]
-```
-
-- Files written to `{name}.part` during transfer
-- Renamed to final name on completion
-- On reconnect: existing `.part` size sent as resume offset; sender seeks to that byte
-
-### Friend Codes
-
-```
-GIGA-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
-```
-
-- 64 hex chars (32-byte Ed25519 public key) split into 16 groups of 4
-- Key generated once, stored in `GigaShare/node_key`, reused forever
-- ALPN protocol: `gigashare/1` — connection timeout 30 s
+- **Discovery** (UDP `52525`, every 2 s): `GIGASHARE_V3:{instance_id}|{name}|{device_type}|{port}|{os_type}|{p2p_id}`
+- **Transfer** (TCP `52526` on LAN, iroh QUIC for Online): `GSH3` + manifest → accept → resume offsets → bytes → ack. Interrupted transfers resume from `.part` files.
+- **Friends**: friend code = Ed25519 public key (`GIGA-` + 64 hex). Adding someone sends them a request; accepting adds both sides. Presence is a QUIC ping.
 
 <br />
 
@@ -281,40 +221,22 @@ GIGA-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-
 
 ```
 Giga-Share/
-├── src/                          # React frontend
-│   ├── App.tsx                   # Main app — events, transfer Map, mode switching
-│   ├── App.css                   # Glassmorphism UI + responsive breakpoints
-│   ├── components/
-│   │   ├── Radar.tsx             # LAN device discovery radar (dynamic radius, drop targets)
-│   │   ├── OsIcon.tsx            # OS-specific SVG icons (Windows/macOS/Linux/Android)
-│   │   ├── FriendsView.tsx       # Online mode — friend list, QR, send
-│   │   ├── QRPairing.tsx         # QR code display + html5-qrcode camera scanner
-│   │   ├── TransferView.tsx      # Transfer progress, speed graph
-│   │   ├── ModePickerDialog.tsx  # LAN vs Online picker (share intent / drag-drop / Send To)
-│   │   └── Settings.tsx          # Settings modal
-│   └── utils/
-│       └── speed.ts              # SpeedCalculator (rolling average)
-├── src-tauri/                    # Rust backend
-│   └── src/
-│       ├── lib.rs                # All Tauri commands + setup
-│       ├── discovery.rs          # UDP V2 broadcast + listener
-│       ├── transfer.rs           # TCP LAN transfer (V2 resume protocol)
-│       ├── p2p.rs                # iroh QUIC P2P (shared Endpoint, same protocol)
-│       ├── friends.rs            # Friend CRUD + friend code encode/decode
-│       ├── speed_limiter.rs      # Token bucket AsyncRead/AsyncWrite
-│       ├── state.rs              # AppSettings, AppState, portable mode config
-│       ├── android_utils.rs      # JNI content:// URI resolver, Android model detection
-│       └── main.rs               # Entry point
-├── src-tauri/gen/android/        # Android project (Gradle + Kotlin)
-│   └── app/src/main/
-│       ├── AndroidManifest.xml   # Permissions + share intent filters
-│       └── java/.../MainActivity.kt  # Share intent handler → emits to WebView
-├── dist-apps/                    # Ready-to-install builds
-│   ├── Giga-Share-Setup.exe
-│   ├── Giga-Share.msi
-│   ├── Giga-Share-Portable/Giga-Share.exe
-│   └── Giga-Share.apk
-└── .github/workflows/build-all.yml  # CI: Windows + Android + Linux + macOS
+├── src/                         # React frontend
+│   ├── App.tsx                  # State, backend events, layout
+│   ├── styles.css               # Design tokens shared with the website
+│   ├── lib/                     # api.ts (commands/types), i18n.tsx (de/en/tr), theme.ts
+│   └── components/              # Radar, Friends, AddFriendDialog, HotspotDialog, Transfers, SettingsSheet …
+├── src-tauri/src/               # Rust backend
+│   ├── protocol.rs              # Transfer protocol (shared by LAN + Online)
+│   ├── transfer.rs              # TCP server/client
+│   ├── p2p.rs                   # iroh endpoint, friend requests, presence
+│   ├── discovery.rs             # UDP discovery
+│   ├── hotspot.rs               # Direct link (nmcli / Windows mobile hotspot)
+│   ├── desktop.rs               # Tray, single instance, notifications, context menus
+│   ├── friends.rs, state.rs, commands.rs, lib.rs
+├── src-tauri/gen/android/       # Android project (MainActivity.kt: share intent, MulticastLock)
+├── docs/                        # Website (GitHub Pages)
+└── build-all.sh                 # Linux + Windows + Android builds
 ```
 
 <br />
@@ -323,31 +245,24 @@ Giga-Share/
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Device Name | hostname / Android model | Shown to other devices on radar |
-| Online Mode | `false` | Switch between LAN and P2P mode |
-| Download Path | `~/Downloads` | Where received files are saved |
-| Auto-Accept | `false` | Skip approval dialog for incoming transfers |
-| Speed Limit (LAN) | `0` (unlimited) | Max Mbit/s for LAN transfers |
-| Speed Limit (Online) | `0` (unlimited) | Max Mbit/s for P2P transfers |
-| Port | `52526` | TCP port for LAN file transfer |
-| Minimize to Tray | `false` | Desktop: minimize instead of close |
-| Start on Boot | `false` | Desktop: launch at system startup |
-| Send To Menu | `false` | Windows: add to right-click Send To folder |
-| Run in Background | `false` | Android: keep alive in background |
+| Device Name | hostname / Android model | Shown to other devices |
+| Download Path | `~/Downloads/Giga-Share` | Where received files go |
+| Auto-Accept | `false` | From LAN devices and friends, without asking |
+| Speed Limit (LAN / Online) | `0` (unlimited) | Mbit/s |
+| Port | `52526` | TCP port for LAN transfers |
+| Keep running in tray | `true` | Desktop |
+| Send-with menu | `true` | Explorer Send To / Nemo / Dolphin / Nautilus |
+| Language | system | Deutsch, English, Türkçe |
 
-Config location:
-- **Standard**: `%APPDATA%/GigaShare/` (Windows) / `~/.config/GigaShare/` (Linux/macOS) / app internal storage (Android)
-- **Portable** (Windows): place `portable.marker` next to `.exe` → config stored in `./config/` beside the exe
+Config location: the OS app-config dir (`~/.config/io.github.emre1001.gigashare/` on Linux, `%APPDATA%\io.github.emre1001.gigashare\` on Windows). Portable: `portable.marker` next to the `.exe` → `./config/`.
 
 ### Ports & Firewall
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 52525 | UDP | Peer discovery (broadcast) |
-| 52526 | TCP | LAN file transfer (configurable) |
-| any | QUIC/UDP | Online P2P via iroh (auto NAT traversal) |
-
-On Windows the app auto-adds firewall rules at startup (requires admin or prior approval). If LAN transfers fail, verify both devices are on the same subnet.
+| 52525 | UDP | Discovery (broadcast) |
+| 52526 | TCP | LAN transfers (configurable) |
+| any | QUIC/UDP | Online P2P via iroh |
 
 <br />
 

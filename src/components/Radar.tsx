@@ -1,185 +1,170 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { OsIcon } from './OsIcon';
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Upload, Wifi } from "lucide-react";
+import { OsIcon } from "./OsIcon";
+import type { Peer } from "../lib/api";
+import { useT } from "../lib/i18n";
 
-interface Peer {
-  name: string;
-  ip: string;
-  port: number;
-  device_type: string;
-  os_type?: string;
-}
-
-interface RadarProps {
+interface Props {
   peers: Peer[];
-  onSelectPeer: (peer: Peer) => void;
-  onDropFiles?: (peer: Peer, paths: string[]) => void;
+  myName: string;
+  myIp: string;
+  dropTarget: string | null;
+  onPick: (peer: Peer) => void;
 }
 
-interface RadarExtraProps {
-  platform?: string;
+const SLOT = 116; // px of ring length one device label needs
+
+/** Circular rings that always fit inside the stage; devices sit exactly on a drawn
+ *  ring, evenly spaced. One ring at ~3/4 of the room until full, then inner + outer. */
+function layout(w: number, h: number, count: number) {
+  const top = 72, bottom = 26;
+  const cx = w / 2;
+  const cy = top + (h - top - bottom) / 2;
+  const R = Math.max(104, Math.min(w / 2 - 62, (h - top - bottom) / 2 - 44));
+  const mid = Math.max(96, R * 0.78);
+  const inner = Math.max(84, R * 0.52);
+  const single = count <= Math.floor((2 * Math.PI * mid) / SLOT);
+  const rings = single ? [mid] : [inner, R];
+  // Split by ring length so spacing is similar on both.
+  const cap0 = single ? count : Math.round((count * inner) / (inner + R));
+  const pos = Array.from({ length: count }, (_, i) => {
+    const ring = i < cap0 ? 0 : 1;
+    const n = ring === 0 ? cap0 : count - cap0;
+    const k = ring === 0 ? i : i - cap0;
+    const t = -Math.PI / 2 + (ring ? Math.PI / n : 0.4) + (k / n) * Math.PI * 2;
+    return { x: cx + Math.cos(t) * rings[ring], y: cy + Math.sin(t) * rings[ring] };
+  });
+  const deco = [inner * 0.42, ...rings, R * 1.4, R * 1.85];
+  return { cx, cy, R, pos, deco };
 }
 
-export const Radar: React.FC<RadarProps & RadarExtraProps> = ({ peers, onSelectPeer, onDropFiles, platform }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [radius, setRadius] = useState(130);
-  const [dragOverPeer, setDragOverPeer] = useState<string | null>(null);
-
-  // Dynamic radius based on container size
+/** Sweep driven by requestAnimationFrame on an SVG attribute: repaints even where
+ *  CSS transform animations stall (WebKitGTK with compositing/DMA-BUF issues). */
+function Sweep({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const g = useRef<SVGGElement>(null);
   useEffect(() => {
-    const updateRadius = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        setRadius(Math.min(clientWidth, clientHeight) * 0.32);
-      }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (t: number) => {
+      g.current?.setAttribute("transform", `rotate(${((t - start) / 6000) * 360 % 360} ${cx} ${cy})`);
+      raf = requestAnimationFrame(tick);
     };
-    updateRadius();
-    const observer = new ResizeObserver(updateRadius);
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [cx, cy]);
+  // 70° wedge ending at angle 0 (pointing right), faded by a radial mask.
+  const a = (70 * Math.PI) / 180;
+  const d = `M${cx},${cy} L${cx + r},${cy} A${r},${r} 0 0 0 ${cx + Math.cos(a) * r},${cy - Math.sin(a) * r} Z`;
+  return (
+    <g ref={g}>
+      <path d={d} fill="url(#sweep-grad)" mask="url(#sweep-mask)" />
+      <line x1={cx} y1={cy} x2={cx + r} y2={cy} stroke="rgba(80,140,255,.55)" strokeWidth="1.2" mask="url(#sweep-mask)" />
+    </g>
+  );
+}
+
+export function Radar({ peers, myName, myIp, dropTarget, onPick }: Props) {
+  const { t } = useT();
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
+    if (ref.current) ro.observe(ref.current);
+    return () => ro.disconnect();
   }, []);
 
+  const { w, h } = size;
+  const L = layout(w, h, peers.length);
+  const sweepR = Math.hypot(w, h);
+
   return (
-    <div className="radar-container" ref={containerRef}>
-      {/* Animated pulse rings */}
-      {[0, 1, 2].map(i => (
-        <motion.div
-          key={i}
-          className="radar-circle"
-          initial={{ scale: 0.3, opacity: 0.6 }}
-          animate={{ scale: 2.5, opacity: 0 }}
-          transition={{
-            repeat: Infinity,
-            duration: 4,
-            delay: i * 1.3,
-            ease: "easeOut",
-          }}
-        />
-      ))}
-
-      {/* Center device */}
-      <motion.div
-        className="device-avatar center-device"
-        animate={{
-          boxShadow: [
-            '0 0 20px rgba(139, 92, 246, 0.3)',
-            '0 0 40px rgba(139, 92, 246, 0.6)',
-            '0 0 20px rgba(139, 92, 246, 0.3)',
-          ]
-        }}
-        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-      >
-        <OsIcon
-          os={platform || 'unknown'}
-          type={platform === 'android' || platform === 'ios' ? 'mobile' : 'desktop'}
-          size={36}
-        />
-      </motion.div>
-
-      {/* Peer devices */}
+    <div className="stage" ref={ref} style={{ minHeight: peers.length > 4 ? 520 : undefined }}>
+      {w > 0 && (
+        <svg className="stage-rings" width={w} height={h} aria-hidden>
+          <defs>
+            <linearGradient id="sweep-grad" x1="1" y1="1" x2="0.2" y2="0">
+              <stop offset="0" stopColor="#0a5cff" style={{ stopOpacity: "var(--radar-sweep)" }} />
+              <stop offset="1" stopColor="#0a5cff" stopOpacity="0" />
+            </linearGradient>
+            <radialGradient id="sweep-fade" cx={L.cx} cy={L.cy} r={L.R * 1.25} gradientUnits="userSpaceOnUse">
+              <stop offset=".25" stopColor="#fff" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </radialGradient>
+            <mask id="sweep-mask"><rect width={w} height={h} fill="url(#sweep-fade)" /></mask>
+          </defs>
+          {L.deco.map((r, i) => (
+            <motion.circle key={i} cx={L.cx} cy={L.cy} r={r} fill="none" stroke="var(--radar-ring)" strokeWidth="1"
+              initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}
+              style={{ transformOrigin: `${L.cx}px ${L.cy}px` }}
+              transition={{ delay: 0.08 * i, duration: 0.9, ease: [0.2, 0.7, 0.1, 1] }} />
+          ))}
+          <Sweep cx={L.cx} cy={L.cy} r={sweepR} />
+          {/* Signal pulses expanding from me */}
+          {[0, 1, 2].map(i => (
+            <motion.circle key={`p${i}`} cx={L.cx} cy={L.cy} r={L.R} fill="none" stroke="#2f6fff" strokeWidth="1.2"
+              style={{ transformOrigin: `${L.cx}px ${L.cy}px` }}
+              initial={{ scale: 0.12, opacity: 0.6 }} animate={{ scale: 1, opacity: 0 }}
+              transition={{ duration: 3.6, repeat: Infinity, delay: i * 1.2, ease: "easeOut" }} />
+          ))}
+          {/* Link lines to devices */}
+          {L.pos.map((p, i) => (
+            <motion.line key={peers[i].id} x1={L.cx} y1={L.cy} x2={p.x} y2={p.y - 14}
+              stroke={dropTarget === `lan:${peers[i].id}` ? "#2f6fff" : "var(--radar-link)"} strokeWidth="1" strokeDasharray="3 6"
+              initial={{ pathLength: 0 }} animate={{ pathLength: 1, strokeDashoffset: [0, -18] }}
+              transition={{ pathLength: { duration: 0.6 }, strokeDashoffset: { duration: 1.2, repeat: Infinity, ease: "linear" } }} />
+          ))}
+        </svg>
+      )}
+      <div className="stage-head">
+        <div>
+          <motion.div className="t" key={peers.length ? "y" : "n"} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            {peers.length ? t("nearbyDevices") : t("lookingAround")}
+          </motion.div>
+          <div className="s">{t("onNetwork", { n: peers.length })}</div>
+        </div>
+      </div>
+      {w > 0 && (
+        <div className="me" style={{ left: L.cx, top: L.cy }}>
+          <motion.div className="core" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", damping: 12, stiffness: 200 }}>
+            <Wifi />
+          </motion.div>
+          <span>{myName}</span>
+        </div>
+      )}
       <AnimatePresence>
-        {peers.map((peer, index) => {
-          const angle = (index / Math.max(peers.length, 1)) * 2 * Math.PI - Math.PI / 2;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-
+        {w > 0 && peers.map((p, i) => {
+          const over = dropTarget === `lan:${p.id}`;
           return (
-            <motion.div
-              key={peer.ip}
-              initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
-              animate={{
-                scale: 1,
-                opacity: 1,
-                x,
-                y,
-              }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: "spring", damping: 20, stiffness: 200 }}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => onSelectPeer(peer)}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverPeer(peer.ip);
-              }}
-              onDragLeave={() => setDragOverPeer(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverPeer(null);
-                if (onDropFiles && e.dataTransfer.files.length > 0) {
-                  const paths = Array.from(e.dataTransfer.files).map(f => (f as any).path || f.name);
-                  onDropFiles(peer, paths);
-                }
-              }}
-              className={`peer-device ${dragOverPeer === peer.ip ? 'drag-over' : ''}`}
+            <motion.button
+              key={p.id}
+              className={`peer ${over ? "over" : ""}`}
+              data-drop={`lan:${p.id}`}
+              onClick={() => onPick(p)}
+              initial={{ opacity: 0, scale: 0.3, left: L.cx, top: L.cy }}
+              animate={{ opacity: 1, scale: over ? 1.08 : 1, left: L.pos[i].x, top: L.pos[i].y }}
+              exit={{ opacity: 0, scale: 0.3, left: L.cx, top: L.cy }}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: "spring", damping: 17, stiffness: 170 }}
+              style={{ x: "-50%", y: "-50%" }}
+              title={t("sendTo", { name: p.name })}
             >
-              <motion.div
-                className="device-avatar peer-avatar"
-                style={{ position: 'relative' }}
-                animate={{
-                  boxShadow: [
-                    '0 0 10px rgba(59, 130, 246, 0.3)',
-                    '0 0 25px rgba(59, 130, 246, 0.5)',
-                    '0 0 10px rgba(59, 130, 246, 0.3)',
-                  ]
-                }}
-                transition={{ repeat: Infinity, duration: 2.5, delay: index * 0.3 }}
-              >
-                <OsIcon
-                  os={peer.os_type || 'unknown'}
-                  type={peer.device_type}
-                  size={28}
-                />
-                {/* OS badge */}
-                {peer.os_type && peer.os_type !== 'unknown' && (
-                  <div className="os-badge">
-                    <OsIcon os={peer.os_type} type={peer.device_type} size={10} color="var(--text-secondary)" />
-                  </div>
-                )}
-              </motion.div>
-
-              {/* Connection line */}
-              <svg
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: `${Math.abs(x) + 30}px`,
-                  height: `${Math.abs(y) + 30}px`,
-                  pointerEvents: 'none',
-                  overflow: 'visible',
-                  zIndex: -1,
-                }}
-              >
-                <motion.line
-                  x1="0"
-                  y1="0"
-                  x2={-x}
-                  y2={-y}
-                  stroke="rgba(139, 92, 246, 0.15)"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1 }}
-                />
-              </svg>
-
-              <motion.span
-                className="peer-name"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                {peer.name}
-              </motion.span>
-              <span className="peer-type">
-                {peer.os_type && peer.os_type !== 'unknown' ? peer.os_type : peer.device_type}
+              <span className="ic">
+                {over ? <Upload size={22} /> : <OsIcon os={p.os_type} type={p.device_type} size={24} />}
               </span>
-            </motion.div>
+              <span style={{ width: "100%" }}>
+                <b className="ellipsis">{p.name}</b>
+                <small>{p.ip}</small>
+              </span>
+            </motion.button>
           );
         })}
       </AnimatePresence>
+      <div className="stage-foot">
+        <span>UDP 52525 · broadcast</span>
+        <span>{myIp}</span>
+      </div>
     </div>
   );
-};
+}

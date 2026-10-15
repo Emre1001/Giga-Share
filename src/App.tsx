@@ -1,1027 +1,508 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
-import { type as osType } from "@tauri-apps/plugin-os";
-import { Radar } from "./components/Radar";
-import { TransferView } from "./components/TransferView";
-import { FriendsView, type Friend } from "./components/FriendsView";
-import { ModePickerDialog } from "./components/ModePickerDialog";
-import { SpeedCalculator } from "./utils/speed";
-import { SettingsModal } from "./components/Settings";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Settings, History as HistoryIcon, CheckCircle2, AlertCircle,
-  Smartphone, Globe, Wifi, Upload, FileIcon, X, Type, FolderOpen,
-  ArrowUpRight, ArrowDownLeft,
+  Wifi, Globe, Type, Settings as SettingsIcon, Sun, Moon, Monitor, X, FileText, Send,
+  AlertCircle, CheckCircle2, Info, UserPlus, Zap, Check,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import "./App.css";
+import {
+  api, baseName, formatBytes, stagger, ease,
+  type FriendRequest, type HotspotInfo, type Bootstrap, type Friend, type IncomingRequest, type P2pStatus, type Peer, type Settings, type Transfer,
+} from "./lib/api";
+import { Radar } from "./components/Radar";
+import { applyTheme, switchTheme, type Theme } from "./lib/theme";
+import { I18nProvider, makeT, resolveLang, type LangSetting } from "./lib/i18n";
+import { OsIcon } from "./components/OsIcon";
+import { Friends } from "./components/Friends";
+import { ActiveTransfers, History } from "./components/Transfers";
+import { SettingsSheet } from "./components/SettingsSheet";
+import { Modal } from "./components/Modal";
+import { Avatar } from "./components/Avatar";
+import { HotspotDialog } from "./components/HotspotDialog";
 
-// ──── Toast notification system ────────────────────────────────────────────
-interface Toast {
-  id: string;
-  message: string;
-  type: "error" | "success" | "info";
-}
+interface Toast { id: number; text: string; kind: "error" | "success" | "info" }
 
-// ──── Transfer state ───────────────────────────────────────────────────────
-interface TransferState {
-  id: string;
-  fileName: string;
-  progress: number;
-  speed: string;
-  eta: string;
-  isSending: boolean;
-  speedCalc: SpeedCalculator;
-  speedHistory: { time: number; speed: number }[];
-  hidden: boolean; // user dismissed the view, but still running
-}
+const HISTORY_KEY = "gs-history";
+const store = {
+  get<T>(k: string, d: T): T {
+    try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; }
+  },
+  set(k: string, v: unknown) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ }
+  },
+};
 
-// ──── Normalize open() result to string[] ─────────────────────────────────
-function normalizePaths(selected: string | string[] | null): string[] {
-  if (!selected) return [];
-  if (Array.isArray(selected)) return selected.filter(Boolean);
-  return [selected];
-}
-
-interface Peer {
-  name: string;
-  ip: string;
-  port: number;
-  device_type: string;
-  os_type?: string;
-}
-
-interface TransferUpdate {
-  transfer_id: string;
-  file_name: string;
-  bytes_sent: number;
-  total_bytes: number;
-}
-
-interface IncomingRequest {
-  transfer_id: string;
-  file_count: number;
-  total_size: number;
-  sender_ip: string;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function App() {
+export default function App() {
+  const [boot, setBoot] = useState<Bootstrap | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [peers, setPeers] = useState<Peer[]>([]);
-  // ── Multi-transfer state ──────────────────────────────────────────────────
-  const [transfers, setTransfers] = useState<Map<string, TransferState>>(new Map());
-  const transfersRef = useRef<Map<string, TransferState>>(new Map());
-  const [primaryTransferId, setPrimaryTransferId] = useState<string | null>(null);
-
-  const [incomingRequest, setIncomingRequest] = useState<IncomingRequest | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({
-    download_path: "", auto_accept: false, port: 52526,
-    online_mode: false, speed_limit_lan_mbps: 0, speed_limit_online_mbps: 0,
-  });
-  const [showSettings, setShowSettings] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<string[]>([]);
-  const [showModePicker, setShowModePicker] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [showSendText, setShowSendText] = useState(false);
-  const [sendTextContent, setSendTextContent] = useState("");
-  const [localIPs, setLocalIPs] = useState<string[]>([]);
-  const [platform, setPlatform] = useState<string>('unknown');
-
-  // Online/P2P state
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [myFriendCode, setMyFriendCode] = useState("");
-
-  const dragCounter = useRef(0);
-  const isMobileRef = useRef(false);
-
-  // Keep ref in sync
+  const [p2p, setP2p] = useState<P2pStatus>({ friend_code: null, error: null });
+  const [transfers, setTransfers] = useState<Map<string, Transfer>>(new Map());
+  const [history, setHistory] = useState<Transfer[]>(() => store.get(HISTORY_KEY, []));
+  const [requests, setRequests] = useState<IncomingRequest[]>([]);
+  const [pending, setPending] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showText, setShowText] = useState(false);
+  const [text, setText] = useState("");
+  const [theme, setTheme] = useState<Theme>(() => store.get("gs-theme", "system"));
+  const [langSetting, setLangSetting] = useState<LangSetting>(() => store.get("gs-lang", "system"));
+  const lang = resolveLang(langSetting);
+  const t = useMemo(() => makeT(lang), [lang]);
+  const tRef = useRef(t);
+  tRef.current = t;
   useEffect(() => {
-    transfersRef.current = transfers;
-  }, [transfers]);
+    document.documentElement.lang = lang;
+    api.setLanguage(lang).catch(() => {});
+  }, [lang]);
+  const changeLang = (l: LangSetting) => { setLangSetting(l); store.set("gs-lang", l); };
+  const [presence, setPresence] = useState<Record<string, boolean>>({});
+  const [waiting, setWaiting] = useState<Set<string>>(new Set());
+  const [friendReqs, setFriendReqs] = useState<FriendRequest[]>([]);
+  const [showHotspot, setShowHotspot] = useState(false);
+  const [hotspot, setHotspot] = useState<HotspotInfo | null>(null);
 
-  // ── Toast helpers ────────────────────────────────────────────────────────
-  const addToast = useCallback((message: string, type: Toast["type"] = "error") => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  // Event handlers registered once need the latest values.
+  const live = useRef({ peers, requests, friends });
+  live.current = { peers, requests, friends };
+
+  const toast = useCallback((text: string, kind: Toast["kind"] = "error") => {
+    const id = Date.now() + Math.random();
+    setToasts(t => [...t, { id, text, kind }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 5000);
   }, []);
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  useEffect(() => { applyTheme(theme); }, []);
+  const changeTheme = (t: Theme, el: Element) => {
+    switchTheme(theme, t, el, () => setTheme(t));
+    store.set("gs-theme", t);
+  };
 
-  // ── Resolve content:// URIs (Android) ────────────────────────────────────
-  const resolveFilePaths = useCallback(async (paths: string[]): Promise<string[]> => {
-    if (!isMobileRef.current) return paths;
-    try {
-      const resolved = await invoke<string[]>("resolve_file_paths", { paths });
-      return resolved;
-    } catch (err) {
-      addToast(`Cannot read files: ${err}`, "error");
-      return [];
-    }
-  }, [addToast]);
+  useEffect(() => store.set(HISTORY_KEY, history.slice(0, 100)), [history]);
 
+  // Source of truth updated synchronously, so events arriving between renders see each other.
+  const xf = useRef(new Map<string, Transfer>());
+  const putTransfer = (t: Transfer) => { xf.current.set(t.id, t); setTransfers(new Map(xf.current)); };
+  const dropTransfer = (id: string) => { xf.current.delete(id); setTransfers(new Map(xf.current)); };
+  const patchTransfer = (id: string, f: (t: Transfer) => Transfer) => {
+    const t = xf.current.get(id);
+    if (t) putTransfer(f(t));
+  };
+
+  // ── Backend events ──────────────────────────────────────────────────────
   useEffect(() => {
-    const detectedPlatform = osType();
-    setPlatform(detectedPlatform);
-    const mobile = detectedPlatform === "android" || detectedPlatform === "ios";
-    setIsMobile(mobile);
-    isMobileRef.current = mobile;
+    const subs = [
+      listen<Peer[]>("peers_changed", e => setPeers(e.payload)),
+      listen<P2pStatus>("p2p_status", e => setP2p(e.payload)),
+      listen<string>("app_error", e => toast(e.payload)),
+      listen<Friend[]>("friends_changed", e => setFriends(e.payload)),
+      listen<{ id: string; online: boolean }>("presence", e => setPresence(p => ({ ...p, [e.payload.id]: e.payload.online }))),
+      listen<FriendRequest>("friend_request", e => setFriendReqs(r => [...r, e.payload])),
+      listen<string>("friend_request_closed", e => setFriendReqs(r => r.filter(x => x.id !== e.payload))),
+      listen<{ id: string; accepted: boolean; name?: string; error?: string }>("friend_answer", ({ payload: a }) => {
+        setWaiting(w => { const n = new Set(w); n.delete(a.id); return n; });
+        const f = live.current.friends.find(x => x.id === a.id);
+        if (a.accepted) {
+          toast(tRef.current("friendAccepted", { name: f?.display_name ?? a.name ?? "" }), "success");
+          setPresence(p => ({ ...p, [a.id]: true }));
+        } else if (a.error) toast(tRef.current("friendUnreachable", { name: f?.display_name ?? "?" }), "info");
+        else toast(tRef.current("friendDeclined", { name: f?.display_name ?? "?" }), "info");
+      }),
+      listen<string[]>("cli_send_files", e => setPending(e.payload)),
+      listen<IncomingRequest>("transfer_request", e => setRequests(r => [...r, e.payload])),
+      listen<{ id: string; direction: "send" | "receive"; peer: string; via: "lan" | "online"; file_name: string; file_count: number; total: number }>(
+        "transfer_started",
+        ({ payload: p }) =>
+          putTransfer({
+            id: p.id, direction: p.direction, peer: p.peer, via: p.via, name: p.file_name, count: p.file_count,
+            total: p.total, bytes: 0, speed: 0, samples: [], status: p.direction === "send" ? "waiting" : "active", at: Date.now(),
+          }),
+      ),
+      listen<{ id: string; bytes: number; total: number; speed: number }>("transfer_progress", ({ payload: p }) =>
+        patchTransfer(p.id, t => ({
+          ...t, status: "active", bytes: p.bytes, total: p.total, speed: p.speed,
+          samples: p.speed > 0 ? [...t.samples.slice(-39), p.speed] : t.samples,
+        })),
+      ),
+      listen<{ id: string; status: Transfer["status"]; error: string | null; path: string | null }>("transfer_finished", ({ payload: p }) => {
+        const req = live.current.requests.find(r => r.id === p.id);
+        setRequests(r => r.filter(x => x.id !== p.id));
+        if (req && p.status !== "rejected") toast(tRef.current("senderCancelled", { name: req.peer }), "info");
+        const t = xf.current.get(p.id);
+        if (!t) return;
+        const done: Transfer = { ...t, status: p.status, error: p.error ?? undefined, path: p.path ?? undefined, at: Date.now(), samples: [] };
+        putTransfer(done);
+        setHistory(h => [done, ...h]);
+        if (p.status === "failed") toast(p.error ?? tRef.current("transferFailed"));
+        setTimeout(() => dropTransfer(p.id), p.status === "done" ? 6000 : 10000);
+      }),
+    ];
 
-    invoke("get_settings").then((s: any) => setSettings(s));
-    invoke("start_discovery");
-    invoke<string[]>("get_local_ips").then(ips => setLocalIPs(ips)).catch(() => {});
-
-    // Load friends
-    invoke("get_friends").then((f: any) => setFriends(f)).catch(() => {});
-
-    const unlistenDiscovered = listen("peer_discovered", (event: any) => {
-      const peer = event.payload as Peer;
-      setPeers(prev => {
-        const idx = prev.findIndex(p => p.ip === peer.ip);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = peer;
-          return updated;
+    // Native file drops: find the device/friend under the cursor via data-drop.
+    const targetAt = (pos: { x: number; y: number }) => {
+      const r = window.devicePixelRatio || 1;
+      const el = document.elementFromPoint(pos.x / r, pos.y / r)?.closest("[data-drop]");
+      return el?.getAttribute("data-drop") ?? null;
+    };
+    const dnd = getCurrentWebview().onDragDropEvent(({ payload: e }) => {
+      if (e.type === "enter" || e.type === "over") {
+        setDragging(true);
+        setDropTarget(targetAt(e.position));
+      } else if (e.type === "drop") {
+        setDragging(false);
+        setDropTarget(null);
+        const target = targetAt(e.position);
+        if (e.paths.length) {
+          if (target) sendTo(target, e.paths);
+          else setPending(e.paths);
         }
-        return [...prev, peer];
-      });
-    });
-
-    const unlistenLost = listen("peer_lost", (event: any) => {
-      const lostIp = event.payload as string;
-      setPeers(prev => prev.filter(p => p.ip !== lostIp));
-    });
-
-    const unlistenRequest = listen("transfer_request", (event: any) => {
-      setIncomingRequest(event.payload as IncomingRequest);
-    });
-
-    const unlistenStarted = listen("transfer_started", (event: any) => {
-      const data = event.payload as any;
-      const newTransfer: TransferState = {
-        id: data.transfer_id,
-        fileName: data.file_name,
-        progress: 0,
-        speed: "0 B/s",
-        eta: "Starting...",
-        isSending: data.is_sending,
-        speedCalc: new SpeedCalculator(),
-        speedHistory: [],
-        hidden: false,
-      };
-      setTransfers(prev => {
-        const next = new Map(prev);
-        next.set(data.transfer_id, newTransfer);
-        return next;
-      });
-      setPrimaryTransferId(data.transfer_id);
-    });
-
-    const unlistenProgress = listen("transfer_progress", (event: any) => {
-      const data = event.payload as TransferUpdate;
-      setTransfers(prev => {
-        const t = prev.get(data.transfer_id);
-        if (!t) return prev;
-        t.speedCalc.addSample(data.bytes_sent);
-        const currentSpeed = t.speedCalc.getSpeed();
-        const progress = Math.round((data.bytes_sent / data.total_bytes) * 100);
-        const updated: TransferState = {
-          ...t,
-          progress: Math.min(progress, 100),
-          speed: t.speedCalc.formatSpeed(currentSpeed),
-          eta: progress >= 100 ? "Complete" : currentSpeed > 0
-            ? `${Math.round((data.total_bytes - data.bytes_sent) / currentSpeed)}s`
-            : "Calculating...",
-          speedHistory: [
-            ...t.speedHistory.slice(-30),
-            { time: Date.now(), speed: currentSpeed / (1024 * 1024) },
-          ],
-        };
-        const next = new Map(prev);
-        next.set(data.transfer_id, updated);
-        return next;
-      });
-    });
-
-    const unlistenComplete = listen("transfer_complete", (event: any) => {
-      const data = event.payload as any;
-      // Use ref to get current state without stale closure
-      const t = transfersRef.current.get(data.transfer_id);
-      if (t) {
-        setHistory(prev => [{
-          fileName: t.fileName,
-          status: data.status,
-          time: new Date().toLocaleTimeString(),
-          isSending: t.isSending,
-          filePath: data.file_path || null,
-        }, ...prev]);
-      }
-      if (data.status === "rejected") {
-        addToast("Transfer rejected by receiver", "error");
-      }
-      // Remove from active transfers after short delay (so progress hits 100%)
-      setTimeout(() => {
-        setTransfers(prev => {
-          const next = new Map(prev);
-          next.delete(data.transfer_id);
-          return next;
-        });
-        setPrimaryTransferId(prev => {
-          if (prev === data.transfer_id) {
-            // Pick another active transfer if any
-            const remaining = [...transfersRef.current.keys()].filter(id => id !== data.transfer_id);
-            return remaining[0] || null;
-          }
-          return prev;
-        });
-      }, 3000);
-    });
-
-    // P2P ready event
-    const unlistenP2p = listen("p2p_ready", (_event: any) => {
-      invoke("get_my_friend_code").then((code: any) => setMyFriendCode(code)).catch(() => {});
-    });
-
-    // Backend error events → toast
-    const unlistenDiscoveryErr = listen("discovery_error", (event: any) => {
-      addToast(`Discovery: ${event.payload}`, "error");
-    });
-    const unlistenTransferServerErr = listen("transfer_server_error", (event: any) => {
-      addToast(`Transfer server: ${event.payload}`, "error");
-    });
-    const unlistenP2pErr = listen("p2p_error", (event: any) => {
-      const msg = event.payload?.message || event.payload;
-      addToast(`P2P: ${msg}`, "error");
-    });
-
-    // CLI --send files (Windows Send To)
-    const unlistenCli = listen("cli_send_files", (event: any) => {
-      const data = event.payload as { paths: string[] };
-      if (data.paths && data.paths.length > 0) {
-        setPendingFiles(data.paths);
-        setShowModePicker(true);
+      } else {
+        setDragging(false);
+        setDropTarget(null);
       }
     });
 
-    // Android share intent
-    const handleShareIntent = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (Array.isArray(detail) && detail.length > 0) {
-        setPendingFiles(detail);
-        setShowModePicker(true);
-      }
-    };
-    window.addEventListener('giga-share-files', handleShareIntent);
-
-    // Check if files were queued before listener attached (Android)
-    if ((window as any).__GIGA_SHARED_FILES__) {
-      const queued = (window as any).__GIGA_SHARED_FILES__ as string[];
-      if (queued.length > 0) {
-        setPendingFiles(queued);
-        setShowModePicker(true);
-      }
-      delete (window as any).__GIGA_SHARED_FILES__;
-    }
-
-    // Tauri native drag-drop events (desktop file drops)
-    const unlistenDragEnterNative = listen("tauri://drag-enter", () => {
-      setIsDragOver(true);
-    });
-    const unlistenDragLeaveNative = listen("tauri://drag-leave", () => {
-      setIsDragOver(false);
-    });
-    const unlistenDragDrop = listen("tauri://drag-drop", (event: any) => {
-      setIsDragOver(false);
-      const paths = event.payload?.paths as string[] | undefined;
-      if (paths && paths.length > 0) {
-        setPendingFiles(paths);
-        setShowModePicker(true);
-      }
-    });
-
-    // Signal backend that all event listeners are registered
-    invoke("frontend_ready").catch(() => {});
-
+    let alive = true;
+    Promise.all([...subs, dnd]).then(() =>
+      api.ready().then(b => {
+        if (!alive) return;
+        setBoot(b);
+        setSettings(b.settings);
+        setPeers(b.peers);
+        setFriends(b.friends);
+        setP2p(b.p2p);
+        if (b.cli_files.length) setPending(b.cli_files);
+        if (b.lan_error) toast(b.lan_error);
+      }),
+    );
     return () => {
-      unlistenDiscovered.then(f => f());
-      unlistenLost.then(f => f());
-      unlistenRequest.then(f => f());
-      unlistenStarted.then(f => f());
-      unlistenProgress.then(f => f());
-      unlistenComplete.then(f => f());
-      unlistenP2p.then(f => f());
-      unlistenDiscoveryErr.then(f => f());
-      unlistenTransferServerErr.then(f => f());
-      unlistenP2pErr.then(f => f());
-      unlistenCli.then(f => f());
-      unlistenDragEnterNative.then(f => f());
-      unlistenDragLeaveNative.then(f => f());
-      unlistenDragDrop.then(f => f());
-      window.removeEventListener('giga-share-files', handleShareIntent);
+      alive = false;
+      [...subs, dnd].forEach(p => p.then(un => un()));
     };
   }, []);
 
-  // Refresh friend code when settings change to online mode
+  const onlineMode = settings?.online_mode ?? false;
   useEffect(() => {
-    if (settings.online_mode && !myFriendCode) {
-      invoke("get_my_friend_code").then((code: any) => setMyFriendCode(code)).catch(() => {});
-    }
-  }, [settings.online_mode]);
+    if (!onlineMode || !p2p.friend_code) return;
+    api.checkPresence();
+    const t = setInterval(() => api.checkPresence(), 45000);
+    return () => clearInterval(t);
+  }, [onlineMode, p2p.friend_code, friends.length]);
 
-  const handleSelectPeer = async (peer: Peer) => {
-    let paths: string[];
-
-    if (pendingFiles.length > 0) {
-      paths = [...pendingFiles];
-      setPendingFiles([]);
-    } else {
-      const selected = await open({ multiple: true, directory: false });
-      paths = normalizePaths(selected as string | string[] | null);
-    }
-
-    if (paths.length === 0) return;
-
-    // Resolve Android content:// URIs to real temp file paths
-    const resolved = await resolveFilePaths(paths);
-    if (resolved.length === 0) return;
-
-    invoke("send_files", {
-      targetIp: peer.ip,
-      targetPort: peer.port,
-      paths: resolved,
-    }).catch(err => {
-      console.error("Send failed:", err);
-      const msg = String(err);
-      addToast(
-        msg.includes("refused") || msg.includes("timed out")
-          ? "Cannot connect — check firewall or that both devices are on the same network"
-          : `Transfer failed: ${msg}`,
-        "error"
-      );
-      setHistory(prev => [{
-        fileName: resolved[0]?.split(/[/\\]/).pop() || "file",
-        status: "error",
-        time: new Date().toLocaleTimeString(),
-        isSending: true,
-      }, ...prev]);
-    });
-  };
-
-  const handleDropFilesToPeer = async (peer: Peer, paths: string[]) => {
-    if (paths.length === 0) return;
-    const resolved = await resolveFilePaths(paths);
-    if (resolved.length === 0) return;
-    invoke("send_files", {
-      targetIp: peer.ip,
-      targetPort: peer.port,
-      paths: resolved,
-    }).catch(err => {
-      console.error("Drop send failed:", err);
-      addToast(`Transfer failed: ${err}`, "error");
-    });
-  };
-
-  const handleSelectFriend = async (friend: Friend) => {
-    let paths: string[];
-
-    if (pendingFiles.length > 0) {
-      paths = [...pendingFiles];
-      setPendingFiles([]);
-    } else {
-      const selected = await open({ multiple: true, directory: false });
-      paths = normalizePaths(selected as string | string[] | null);
-    }
-
-    if (paths.length === 0) return;
-
-    // Resolve Android content:// URIs
-    const resolved = await resolveFilePaths(paths);
-    if (resolved.length === 0) return;
-
-    invoke("send_files_online", {
-      friendId: friend.id,
-      paths: resolved,
-    }).catch(err => {
-      console.error("P2P send failed:", err);
-      const msg = String(err);
-      addToast(
-        msg.includes("not ready")
-          ? "P2P not ready yet — wait a moment and try again"
-          : msg.includes("timeout") || msg.includes("timed out")
-          ? "Connection timed out — check internet and friend code"
-          : `Online transfer failed: ${msg}`,
-        "error"
-      );
-      setHistory(prev => [{
-        fileName: resolved[0]?.split(/[/\\]/).pop() || "file",
-        status: "error",
-        time: new Date().toLocaleTimeString(),
-        isSending: true,
-      }, ...prev]);
-    });
-  };
-
-  const handleAddFriend = async (code: string, name: string) => {
+  // ── Actions ─────────────────────────────────────────────────────────────
+  const sendTo = async (target: string, paths: string[]) => {
+    const [kind, id] = [target.slice(0, target.indexOf(":")), target.slice(target.indexOf(":") + 1)];
     try {
-      const friend = await invoke("add_friend", { code, name }) as Friend;
-      setFriends(prev => [...prev, friend]);
-    } catch (err) {
-      addToast(`Add friend failed: ${err}`, "error");
+      if (kind === "lan") {
+        const peer = live.current.peers.find(p => p.id === id);
+        if (!peer) throw tRef.current("deviceOffline");
+        await api.sendLan(peer, paths);
+      } else {
+        await api.sendOnline(id, paths);
+      }
+      setPending([]);
+    } catch (e) {
+      toast(String(e));
     }
   };
 
-  const handleRemoveFriend = async (id: string) => {
+  const pickAndSend = async (target: string) => {
+    let paths = pending;
+    if (!paths.length) {
+      const sel = await openDialog({ multiple: true, directory: false });
+      paths = sel ? (Array.isArray(sel) ? sel : [sel]) : [];
+    }
+    if (paths.length) sendTo(target, paths);
+  };
+
+  const saveSettings = async (s: Settings) => {
     try {
-      await invoke("remove_friend", { id });
-      setFriends(prev => prev.filter(f => f.id !== id));
-    } catch (err) {
-      console.error("Remove friend failed:", err);
+      setSettings(await api.updateSettings(s));
+      return true;
+    } catch (e) {
+      toast(String(e));
+      return false;
     }
   };
 
-  const handleRenameFriend = async (id: string, newName: string) => {
+  const setMode = (online: boolean) => settings && settings.online_mode !== online && saveSettings({ ...settings, online_mode: online });
+
+  const respond = (req: IncomingRequest, accept: boolean) => {
+    api.respond(req.id, accept);
+    setRequests(r => r.filter(x => x.id !== req.id));
+  };
+
+  const addFriend = async (code: string, name: string) => {
     try {
-      await invoke("rename_friend", { id, newName });
-      setFriends(prev => prev.map(f => f.id === id ? { ...f, display_name: newName } : f));
-    } catch (err) {
-      console.error("Rename friend failed:", err);
+      const f = await api.addFriend(code, name);
+      setWaiting(w => new Set(w).add(f.id));
+      toast(t("requestSent", { name: f.display_name }), "success");
+      return true;
+    } catch (e) {
+      toast(String(e));
+      return false;
     }
   };
 
-  const handleAccept = () => {
-    if (incomingRequest) {
-      invoke("accept_transfer", { transferId: incomingRequest.transfer_id });
-      setIncomingRequest(null);
-    }
+  const answerFriend = (r: FriendRequest, accept: boolean) => {
+    api.respond(r.id, accept);
+    setFriendReqs(l => l.filter(x => x.id !== r.id));
+    if (accept) toast(t("nowFriends", { name: r.name }), "success");
   };
 
-  const handleReject = () => {
-    if (incomingRequest) {
-      invoke("reject_transfer", { transferId: incomingRequest.transfer_id });
-      setIncomingRequest(null);
-    }
-  };
-
-  // Mode picker handlers
-  const handleModePickerLan = () => {
-    setShowModePicker(false);
-    const newSettings = { ...settings, online_mode: false };
-    setSettings(newSettings);
-    invoke("update_settings", { newSettings });
-  };
-
-  const handleModePickerOnline = () => {
-    setShowModePicker(false);
-    const newSettings = { ...settings, online_mode: true };
-    setSettings(newSettings);
-    invoke("update_settings", { newSettings });
-  };
-
-  const handleCancelPending = () => {
-    setPendingFiles([]);
-    setShowModePicker(false);
-  };
-
-  // ── Send Text feature ────────────────────────────────────────────────────
-  const handleSendTextSubmit = async () => {
-    if (!sendTextContent.trim()) return;
+  const submitText = async () => {
+    if (!text.trim()) return;
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `text-${timestamp}.txt`;
-      const tempPath = await invoke<string>("create_text_file", {
-        text: sendTextContent.trim(),
-        filename,
-      });
-      setSendTextContent("");
-      setShowSendText(false);
-      setPendingFiles([tempPath]);
-      setShowModePicker(true);
-    } catch (err) {
-      addToast(`Cannot create text file: ${err}`, "error");
+      setPending([await api.createTextFile(text)]);
+      setText("");
+      setShowText(false);
+    } catch (e) {
+      toast(String(e));
     }
   };
 
-  // Drag & drop handlers
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current++;
-    if (dragCounter.current === 1) setIsDragOver(true);
-  };
+  if (!boot || !settings) return <div className="app" />;
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current--;
-    if (dragCounter.current === 0) setIsDragOver(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current = 0;
-    setIsDragOver(false);
-  };
-
-  const isOnline = settings.online_mode;
-
-  // ── Active transfers for display ─────────────────────────────────────────
-  const activeTransferList = [...transfers.values()].filter(t => !t.hidden);
-  const primaryTransfer = primaryTransferId ? transfers.get(primaryTransferId) : null;
-  const visiblePrimary = primaryTransfer && !primaryTransfer.hidden ? primaryTransfer : activeTransferList[0] || null;
-  const extraCount = activeTransferList.length > 1 ? activeTransferList.length - 1 : 0;
+  const online = settings.online_mode;
+  const isDesktop = !["android", "ios"].includes(boot.os);
+  const active = [...transfers.values()].sort((a, b) => b.at - a.at);
+  const running = active.filter(t => t.status === "active" || t.status === "waiting");
+  const req = requests[0];
+  const ip = boot.local_ips[0] ?? "offline";
 
   return (
-    <div
-      className="app-container"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      <div className="nebula-bg" />
+    <I18nProvider lang={lang}>
+    <div className="app">
+      <nav className="nav">
+        <div className="brand">
+          <img src="/icon.png" alt="" />
+          <span>Giga-Share<span className="dot">.</span></span>
+        </div>
+        <div className="seg">
+          <motion.span className="thumb" layout transition={{ type: "spring", damping: 22, stiffness: 300 }}
+            style={{ width: "calc(50% - 3px)", left: online ? "50%" : 3 }} />
+          <button aria-pressed={!online} onClick={() => setMode(false)}><Wifi />LAN</button>
+          <button aria-pressed={online} onClick={() => setMode(true)}><Globe />Online</button>
+        </div>
+        <div className="nav-right">
+          <div className="theme" role="radiogroup" aria-label="Theme">
+            {([["light", Sun], ["system", Monitor], ["dark", Moon]] as const).map(([th, Icon]) => (
+              <button key={th} role="radio" aria-checked={theme === th} title={t(th === "light" ? "themeLight" : th === "dark" ? "themeDark" : "themeSystem")} onClick={e => changeTheme(th, e.currentTarget)}><Icon /></button>
+            ))}
+          </div>
+          <button className="icon-btn" title={t("sendText")} onClick={() => setShowText(true)}><Type /></button>
+          <button className={`icon-btn ${showSettings ? "on" : ""}`} title={t("settings")} onClick={() => setShowSettings(true)}>
+            <SettingsIcon />
+          </button>
+        </div>
+      </nav>
 
-      {/* ── Toast Notifications ─────────────────────────────────────────── */}
-      <div className="toast-container">
-        <AnimatePresence>
-          {toasts.map(toast => (
-            <motion.div
-              key={toast.id}
-              className={`toast toast-${toast.type}`}
-              initial={{ opacity: 0, x: 60, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 60, scale: 0.9 }}
-              transition={{ type: "spring", damping: 25, stiffness: 350 }}
-            >
-              <span className="toast-message">{toast.message}</span>
-              <button className="toast-close" onClick={() => dismissToast(toast.id)}>
-                <X size={14} />
-              </button>
-            </motion.div>
-          ))}
+      <main className="main">
+        <AnimatePresence mode="wait" initial={false}>
+        <motion.section key={online ? "online" : "lan"} className={`col ${online ? "col-scroll" : ""}`}
+          initial={{ opacity: 0, x: online ? 40 : -40, filter: "blur(6px)" }}
+          animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+          exit={{ opacity: 0, x: online ? -40 : 40, filter: "blur(6px)" }}
+          transition={{ duration: 0.35, ease }}>
+          <AnimatePresence>
+            {pending.length > 0 && (
+              <motion.div className="pending" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
+                <FileText />
+                <span className="ellipsis" style={{ flex: 1 }}>
+                  <b>{pending.length === 1 ? baseName(pending[0]) : t("itemsN", { n: pending.length })}</b>{" "}
+                  {t(online ? "readyPickFriend" : "readyPickDevice")}
+                </span>
+                <button className="icon-btn" title={t("discard")} onClick={() => setPending([])}><X /></button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {online ? (
+            <Friends
+              friends={friends}
+              p2p={p2p}
+              myName={settings.device_name}
+              nearby={peers}
+              presence={presence}
+              waiting={waiting}
+              dropTarget={dropTarget}
+              onPick={f => pickAndSend(`friend:${f.id}`)}
+              onAdd={addFriend}
+              onRemove={f => {
+                if (!confirm(t("confirmRemove", { name: f.display_name }))) return;
+                api.removeFriend(f.id).then(() => setFriends(l => l.filter(x => x.id !== f.id))).catch(e => toast(String(e)));
+              }}
+              onRename={(f, name) => {
+                if (!name.trim() || name === f.display_name) return;
+                api.renameFriend(f.id, name)
+                  .then(() => setFriends(l => l.map(x => (x.id === f.id ? { ...x, display_name: name.trim() } : x))))
+                  .catch(e => toast(String(e)));
+              }}
+            />
+          ) : (
+            <>
+              <Radar peers={peers} myName={settings.device_name} myIp={`${ip}:${settings.port}`} dropTarget={dropTarget}
+                onPick={p => pickAndSend(`lan:${p.id}`)} />
+              <div className="card" style={{ flex: "none" }}>
+                <div className="card-head">
+                  <h2>{t("devices")}</h2>
+                  <span className="right">
+                    <button className={`btn btn-line btn-sm ${hotspot ? "live-btn" : ""}`} onClick={() => setShowHotspot(true)}>
+                      <Zap />{t(hotspot ? "directLinkOn" : "directLink")}
+                    </button>
+                  </span>
+                </div>
+                {peers.length === 0 ? (
+                  <div className="empty">
+                    {t("noDevices")}<br />
+                    {t("noDevicesOr")} <button className="btn btn-ghost btn-sm" style={{ display: "inline-flex" }} onClick={() => setShowHotspot(true)}>{t("directLink")}</button> {t("noDevicesEnd")}
+                  </div>
+                ) : (
+                  <div className="list">
+                    <AnimatePresence initial={false}>
+                    {peers.map((p, i) => (
+                      <motion.div key={p.id} layout {...stagger(i)} className={`row ${dropTarget === `lan:${p.id}` ? "over" : ""}`} data-drop={`lan:${p.id}`}>
+                        <span className="os"><OsIcon os={p.os_type} type={p.device_type} size={18} /></span>
+                        <span className="ellipsis">
+                          <b className="ellipsis">{p.name}</b>
+                          <small>{p.ip} · {p.os_type}</small>
+                        </span>
+                        <span className="acts">
+                          {p.p2p_id && (friends.some(f => f.id === p.p2p_id) ? (
+                            <span className="icon-btn" title={t("alreadyFriend")}><Check /></span>
+                          ) : (
+                            <button className="icon-btn" title={t("addAsFriend")} onClick={() => addFriend(p.p2p_id!, p.name)}><UserPlus /></button>
+                          ))}
+                          <button className="btn btn-primary btn-sm" onClick={() => pickAndSend(`lan:${p.id}`)}><Send />{t("send")}</button>
+                        </span>
+                      </motion.div>
+                    ))}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </motion.section>
         </AnimatePresence>
-      </div>
 
-      {/* Drag & Drop overlay */}
+        <section className="col col-scroll">
+          <ActiveTransfers list={active} />
+          <History items={history} onClear={() => setHistory([])} />
+        </section>
+      </main>
+
+      <footer className="foot">
+        <span className={boot.lan_error ? "live bad" : "live"}>{t(boot.lan_error ? "lanUnavailable" : "ready")}</span>
+        <span>{settings.device_name}</span>
+        <span>{ip}:{settings.port}</span>
+        <span>{online ? t(p2p.friend_code ? "p2pOnline" : "p2pConnecting") : t("lan")}</span>
+        {running.length > 0 && <span>{t("transfersN", { n: running.length })}</span>}
+        <span className="right">v{boot.version}</span>
+      </footer>
+
+      {/* Incoming request */}
+      <Modal open={!!req}>
+        {req && (
+          <>
+            <div className="dialog-head">
+              <div>
+                <p className="eyebrow" style={{ marginBottom: 8 }}>{t("incoming")} · <b>{req.via === "online" ? "P2P" : "LAN"}</b></p>
+                <h3>{req.peer}</h3>
+                <p className="sub">{t("wantsToSend", { n: req.file_count, size: formatBytes(req.total_size) })}</p>
+              </div>
+            </div>
+            {!req.known && <span className="tag warn">{t("notFriend")}</span>}
+            <ul className="files">
+              {req.files.map(f => <li key={f}><span className="ellipsis">{f}</span></li>)}
+              {req.file_count > req.files.length && <li className="muted">{t("moreN", { n: req.file_count - req.files.length })}</li>}
+            </ul>
+            <div className="dialog-actions">
+              <button className="btn btn-line" onClick={() => respond(req, false)}>{t("decline")}</button>
+              {!req.known && req.peer_id && (
+                <button className="btn btn-line" onClick={() => { respond(req, true); addFriend(req.peer_id!, ""); }}><UserPlus />{t("acceptAdd")}</button>
+              )}
+              <button className="btn btn-primary" onClick={() => respond(req, true)}>{t("accept")}</button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* Send text */}
+      <Modal open={showText} onClose={() => setShowText(false)}>
+        <div className="dialog-head">
+          <div>
+            <h3>{t("sendText")}</h3>
+            <p className="sub">{t("sendTextSub")}</p>
+          </div>
+          <button className="icon-btn" onClick={() => setShowText(false)}><X /></button>
+        </div>
+        <textarea className="input" rows={6} autoFocus value={text} placeholder={t("typeOrPaste")}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && (e.ctrlKey || e.metaKey) && submitText()} />
+        <div className="dialog-actions">
+          <span className="eyebrow" style={{ marginRight: "auto", alignSelf: "center" }}>Ctrl + Enter</span>
+          <button className="btn btn-primary" disabled={!text.trim()} onClick={submitText}>{t("chooseRecipient")}</button>
+        </div>
+      </Modal>
+
+      {/* Friend request */}
+      <Modal open={!req && friendReqs.length > 0}>
+        {friendReqs[0] && (
+          <>
+            <div className="dialog-head" style={{ alignItems: "center" }}>
+              <motion.div initial={{ scale: 0.4, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", damping: 10 }}>
+                <Avatar id={friendReqs[0].from} name={friendReqs[0].name} size={56} />
+              </motion.div>
+              <div>
+                <p className="eyebrow" style={{ marginBottom: 6 }}><b>{t("friendRequest")}</b></p>
+                <h3>{friendReqs[0].name}</h3>
+                <p className="sub">{t("friendRequestText")}</p>
+              </div>
+            </div>
+            <div className="dialog-actions">
+              <button className="btn btn-line" onClick={() => answerFriend(friendReqs[0], false)}>{t("decline")}</button>
+              <button className="btn btn-primary" onClick={() => answerFriend(friendReqs[0], true)}><UserPlus />{t("accept")}</button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      <HotspotDialog open={showHotspot} isDesktop={isDesktop} info={hotspot} onInfo={setHotspot}
+        onClose={() => setShowHotspot(false)} onError={e => toast(e)} />
+
+      <SettingsSheet open={showSettings} settings={settings} isDesktop={isDesktop} version={boot.version}
+        onClose={() => setShowSettings(false)} onSave={saveSettings} langSetting={langSetting} onLang={changeLang} />
+
       <AnimatePresence>
-        {isDragOver && (
-          <motion.div
-            className="drop-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <Upload size={48} color="var(--accent-purple)" />
-            <span className="drop-overlay-text">Drop files to share</span>
-            <span className="drop-overlay-hint">
-              {isOnline ? "Drop on a friend to send" : "Drop on a device to send"}
-            </span>
+        {dragging && (
+          <motion.div className="drop-overlay" initial={{ opacity: 0 }} animate={{ opacity: dropTarget ? 0.35 : 1 }} exit={{ opacity: 0 }}>
+            <div>
+              <b>{t("dropToShare")}</b>
+              <span>{t(online ? "dropOnFriend" : "dropOnDevice")}</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <header className="header">
-        <motion.div
-          className="logo"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          GIGA-SHARE
-        </motion.div>
-        <motion.div
-          style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          {/* Active transfer badge */}
-          <AnimatePresence>
-            {activeTransferList.length > 0 && (
-              <motion.div
-                className="transfer-badge"
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", damping: 20 }}
-                onClick={() => {
-                  const t = activeTransferList[0];
-                  if (t) {
-                    setPrimaryTransferId(t.id);
-                    setTransfers(prev => {
-                      const next = new Map(prev);
-                      const updated = next.get(t.id);
-                      if (updated) next.set(t.id, { ...updated, hidden: false });
-                      return next;
-                    });
-                    setShowHistory(false);
-                  }
-                }}
-              >
-                {activeTransferList.some(t => t.isSending)
-                  ? <ArrowUpRight size={12} />
-                  : <ArrowDownLeft size={12} />}
-                <span>{activeTransferList.length}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <motion.button
-            className="icon-btn"
-            title="Send text / URL"
-            onClick={() => setShowSendText(true)}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <Type size={18} />
-          </motion.button>
-          <button
-            className={`icon-btn ${showHistory ? 'active' : ''}`}
-            onClick={() => { setShowHistory(!showHistory); setShowSettings(false); }}
-          >
-            <HistoryIcon size={20} />
-          </button>
-          <button
-            className={`icon-btn ${showSettings ? 'active' : ''}`}
-            onClick={() => { setShowSettings(!showSettings); setShowHistory(false); }}
-          >
-            <Settings size={20} />
-          </button>
-        </motion.div>
-      </header>
-
-      <main className="main-content">
-        {/* Incoming transfer request overlay */}
+      <div className="toasts">
         <AnimatePresence>
-          {incomingRequest && (
-            <motion.div
-              className="modal-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="glass-panel incoming-dialog"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              >
-                <div className="incoming-icon">
-                  <motion.div
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                  >
-                    <Smartphone size={40} color="var(--accent-blue)" />
-                  </motion.div>
-                </div>
-                <h2>Incoming Transfer</h2>
-                <p className="text-secondary">{incomingRequest.sender_ip}</p>
-                <p className="incoming-details">
-                  {incomingRequest.file_count} file{incomingRequest.file_count > 1 ? 's' : ''} — {formatSize(incomingRequest.total_size)}
-                </p>
-                <div className="incoming-actions">
-                  <motion.button
-                    className="btn-primary"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleAccept}
-                  >
-                    Accept
-                  </motion.button>
-                  <motion.button
-                    className="btn-secondary btn-reject"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleReject}
-                  >
-                    Reject
-                  </motion.button>
-                </div>
-              </motion.div>
+          {toasts.map(t => (
+            <motion.div key={t.id} className={`toast ${t.kind}`} layout
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 40 }}>
+              {t.kind === "error" ? <AlertCircle /> : t.kind === "success" ? <CheckCircle2 /> : <Info />}
+              <p>{t.text}</p>
+              <button onClick={() => setToasts(l => l.filter(x => x.id !== t.id))}><X size={14} /></button>
             </motion.div>
-          )}
+          ))}
         </AnimatePresence>
-
-        {/* Mode Picker Dialog */}
-        <ModePickerDialog
-          isOpen={showModePicker}
-          fileCount={pendingFiles.length}
-          onSelectLan={handleModePickerLan}
-          onSelectOnline={handleModePickerOnline}
-          onClose={handleCancelPending}
-        />
-
-        {/* Send Text Dialog */}
-        <AnimatePresence>
-          {showSendText && (
-            <motion.div
-              className="modal-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSendText(false)}
-            >
-              <motion.div
-                className="glass-panel send-text-dialog"
-                initial={{ scale: 0.85, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.85, opacity: 0, y: 20 }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Type size={20} color="var(--accent-purple)" />
-                    <h3>Send Text</h3>
-                  </div>
-                  <motion.button
-                    className="icon-btn"
-                    onClick={() => setShowSendText(false)}
-                    whileHover={{ scale: 1.1, rotate: 90 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <X size={18} />
-                  </motion.button>
-                </div>
-                <p className="text-secondary" style={{ fontSize: '12px', marginBottom: '12px' }}>
-                  Share a message, URL, or any text — sent as a .txt file
-                </p>
-                <textarea
-                  className="glass-input"
-                  value={sendTextContent}
-                  onChange={e => setSendTextContent(e.target.value)}
-                  placeholder="Type or paste text here..."
-                  rows={5}
-                  style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', marginBottom: '16px' }}
-                  autoFocus
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSendTextSubmit();
-                  }}
-                />
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <motion.button
-                    className="btn-secondary"
-                    onClick={() => setShowSendText(false)}
-                    whileTap={{ scale: 0.95 }}
-                    style={{ padding: '10px 20px' }}
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    className="btn-primary"
-                    onClick={handleSendTextSubmit}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={!sendTextContent.trim()}
-                    style={{ padding: '10px 24px', opacity: sendTextContent.trim() ? 1 : 0.5 }}
-                  >
-                    Next →
-                  </motion.button>
-                </div>
-                <p className="text-secondary" style={{ fontSize: '11px', marginTop: '10px', textAlign: 'center' }}>
-                  Ctrl+Enter to continue
-                </p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence mode="wait">
-          {showHistory ? (
-            <motion.div
-              key="history"
-              className="glass-panel history-panel"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -30 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h2 style={{ marginBottom: '20px' }}>Transfer History</h2>
-              {history.length === 0 ? (
-                <p className="text-secondary">No transfers yet.</p>
-              ) : (
-                history.map((item, i) => (
-                  <motion.div
-                    key={i}
-                    className="history-item"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0, flex: 1 }}>
-                      {item.status === 'success' ? (
-                        <CheckCircle2 color="#10b981" size={16} style={{ flexShrink: 0 }} />
-                      ) : (
-                        <AlertCircle color="#ef4444" size={16} style={{ flexShrink: 0 }} />
-                      )}
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13px' }}>
-                          {item.isSending ? '↑ ' : '↓ '}{item.fileName}
-                        </div>
-                        {item.status !== 'success' && (
-                          <div style={{ fontSize: '11px', color: '#ef4444' }}>Failed</div>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
-                      {item.status === 'success' && !item.isSending && item.filePath && !isMobile && (
-                        <motion.button
-                          className="icon-btn"
-                          style={{ width: '28px', height: '28px', borderRadius: '8px' }}
-                          title="Reveal in Explorer"
-                          onClick={() => invoke("reveal_file", { path: item.filePath }).catch(() => {})}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <FolderOpen size={13} />
-                        </motion.button>
-                      )}
-                      <span className="text-secondary" style={{ fontSize: '11px' }}>{item.time}</span>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </motion.div>
-          ) : visiblePrimary ? (
-            <motion.div
-              key="transfer"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.3 }}
-              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
-            >
-              <TransferView
-                {...visiblePrimary}
-                history={visiblePrimary.speedHistory}
-                onCancel={() => {
-                  // Hide from view but keep running in background
-                  setTransfers(prev => {
-                    const next = new Map(prev);
-                    const t = next.get(visiblePrimary.id);
-                    if (t) next.set(visiblePrimary.id, { ...t, hidden: true });
-                    return next;
-                  });
-                  // Show next active if any
-                  const others = [...transfers.values()].filter(t => t.id !== visiblePrimary.id && !t.hidden);
-                  setPrimaryTransferId(others[0]?.id || null);
-                }}
-              />
-              {/* Extra transfers mini list */}
-              {extraCount > 0 && (
-                <motion.div
-                  className="extra-transfers"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  {activeTransferList.filter(t => t.id !== visiblePrimary.id).map(t => (
-                    <motion.div
-                      key={t.id}
-                      className="extra-transfer-item"
-                      onClick={() => {
-                        setPrimaryTransferId(t.id);
-                        setTransfers(prev => {
-                          const next = new Map(prev);
-                          const upd = next.get(t.id);
-                          if (upd) next.set(t.id, { ...upd, hidden: false });
-                          return next;
-                        });
-                      }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      {t.isSending ? <ArrowUpRight size={12} color="var(--accent-purple)" /> : <ArrowDownLeft size={12} color="var(--accent-blue)" />}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.fileName}</span>
-                      <span style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--accent-purple)' }}>{t.progress}%</span>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </motion.div>
-          ) : isOnline ? (
-            <motion.div
-              key="friends"
-              style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <FriendsView
-                friends={friends}
-                myFriendCode={myFriendCode}
-                pendingFiles={pendingFiles}
-                onAddFriend={handleAddFriend}
-                onRemoveFriend={handleRemoveFriend}
-                onRenameFriend={handleRenameFriend}
-                onSelectFriend={handleSelectFriend}
-                onCancelPending={handleCancelPending}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="radar"
-              style={{ textAlign: 'center', width: '100%' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <Radar peers={peers} onSelectPeer={handleSelectPeer} onDropFiles={handleDropFilesToPeer} platform={platform} />
-              <motion.div
-                style={{ marginTop: 'clamp(16px, 4vh, 40px)' }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-              >
-                {pendingFiles.length > 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <FileIcon size={18} color="var(--accent-purple)" />
-                    <h1 style={{ fontSize: 'clamp(16px, 3.5vw, 22px)', margin: 0 }}>
-                      {pendingFiles.length} file{pendingFiles.length !== 1 ? 's' : ''} ready — tap a device
-                    </h1>
-                    <motion.button
-                      className="btn-secondary"
-                      style={{ padding: '5px 14px', fontSize: '12px' }}
-                      onClick={handleCancelPending}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      Cancel
-                    </motion.button>
-                  </div>
-                ) : (
-                  <>
-                    <h1 style={{ fontSize: 'clamp(18px, 4vw, 28px)', marginBottom: '10px' }}>
-                      {peers.length > 0 ? 'Tap a device to send' : 'Searching for Peers...'}
-                    </h1>
-                    <p className="text-secondary">
-                      {peers.length} device{peers.length !== 1 ? 's' : ''} on network
-                    </p>
-                  </>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      <motion.footer
-        className="stats-footer glass-panel"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-      >
-        <div className="stat-card">
-          <div className="stat-label">IP Address</div>
-          <div className="stat-value" style={{ fontSize: 'clamp(10px, 1.8vw, 13px)', color: 'var(--text-secondary)' }}>
-            {localIPs[0] || "—"}
-          </div>
-        </div>
-        <div className="stat-card stat-card-bordered">
-          <div className="stat-label">Bandwidth</div>
-          <div className="stat-value" style={{ color: activeTransferList.length > 0 ? 'var(--accent-purple)' : 'var(--text-secondary)' }}>
-            {visiblePrimary ? visiblePrimary.speed : "—"}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Mode</div>
-          <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {isOnline ? (
-              <><Globe size={16} color="var(--accent-blue)" /> <span style={{ color: 'var(--accent-blue)' }}>P2P</span></>
-            ) : (
-              <><Wifi size={16} /> LAN</>
-            )}
-          </div>
-        </div>
-      </motion.footer>
-
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings}
-        isMobile={isMobile}
-        onUpdate={(s) => {
-          setSettings(s);
-          invoke("update_settings", { newSettings: s });
-        }}
-      />
+      </div>
     </div>
+    </I18nProvider>
   );
 }
-
-export default App;
