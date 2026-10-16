@@ -1,6 +1,6 @@
 [package]
 name = "giga-share"
-version = "2.0.0"
+version = "2.0.1"
 description = "Fast file sharing over LAN or encrypted P2P"
 authors = ["Emre1001"]
 license = "GPL-3.0"
