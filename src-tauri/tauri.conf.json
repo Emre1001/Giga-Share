@@ -43,14 +43,30 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["libayatana-appindicator3-1"],
+        "depends": [
+          "libayatana-appindicator3-1"
+        ],
         "section": "net"
       },
       "rpm": {
-        "depends": ["libayatana-appindicator-gtk3"]
+        "depends": [
+          "libayatana-appindicator-gtk3"
+        ]
       },
       "appimage": {
         "bundleMediaFramework": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIwQkE1NjVCOUZENUJFNDQKUldSRXZ0V2ZXMWE2c0FTeUZ6cWdmck9SNENOaFRhTjUrWFh2MTFpYWVDWEdPdldMSG1KeXJPUkoK",
+      "endpoints": [
+        "https://github.com/Emre1001/Giga-Share/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

@@ -43,7 +43,10 @@ export interface Bootstrap {
   os: string;
   version: string;
   cli_files: string[];
+  update_kind: UpdateKind;
 }
+
+export type UpdateKind = "nsis" | "appimage" | "android" | "manual";
 
 export type Via = "lan" | "online";
 export type Status = "waiting" | "active" | "done" | "failed" | "cancelled" | "rejected";
@@ -100,6 +103,7 @@ export const api = {
   renameFriend: (id: string, name: string) => invoke("rename_friend", { id, name }),
   createTextFile: (text: string) => invoke<string>("create_text_file", { text }),
   reveal: (path: string) => invoke("reveal_file", { path }),
+  openReleases: () => invoke("open_releases"),
   openDownloads: () => invoke("open_download_folder"),
   checkPresence: () => invoke("check_presence"),
   setLanguage: (lang: string) => invoke("set_language", { lang }),

@@ -1,7 +1,10 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useBackClose } from "../lib/back";
 
 export function Modal({ open, onClose, children }: { open: boolean; onClose?: () => void; children: ReactNode }) {
+  const root = useRef<HTMLDivElement>(null);
+  useBackClose(open, onClose, root);
   useEffect(() => {
     if (!open || !onClose) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -12,7 +15,7 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose?: ()
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        <motion.div ref={root} className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onMouseDown={e => e.target === e.currentTarget && onClose?.()}>
           <motion.div className="dialog" role="dialog" aria-modal
             initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }}

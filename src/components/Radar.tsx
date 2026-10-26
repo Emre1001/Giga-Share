@@ -44,6 +44,7 @@ function layout(w: number, h: number, count: number) {
 function Sweep({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   const g = useRef<SVGGElement>(null);
   useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const start = performance.now();
     const tick = (t: number) => {
@@ -125,11 +126,10 @@ export function Radar({ peers, myName, myIp, dropTarget, onPick }: Props) {
         </div>
       </div>
       {w > 0 && (
-        <div className="me" style={{ left: L.cx, top: L.cy }}>
+        <div className="me" title={myName} style={{ left: L.cx, top: L.cy }}>
           <motion.div className="core" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", damping: 12, stiffness: 200 }}>
             <Wifi />
           </motion.div>
-          <span>{myName}</span>
         </div>
       )}
       <AnimatePresence>

@@ -21,6 +21,8 @@ import { SettingsSheet } from "./components/SettingsSheet";
 import { Modal } from "./components/Modal";
 import { Avatar } from "./components/Avatar";
 import { HotspotDialog } from "./components/HotspotDialog";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { useUpdater } from "./lib/update";
 
 interface Toast { id: number; text: string; kind: "error" | "success" | "info" }
 
@@ -76,6 +78,8 @@ export default function App() {
     setToasts(t => [...t, { id, text, kind }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 5000);
   }, []);
+
+  const updater = useUpdater(boot?.update_kind ?? "manual", boot?.version ?? "");
 
   useEffect(() => { applyTheme(theme); }, []);
   const changeTheme = (t: Theme, el: Element) => {
@@ -477,7 +481,10 @@ export default function App() {
         onClose={() => setShowHotspot(false)} onError={e => toast(e)} />
 
       <SettingsSheet open={showSettings} settings={settings} isDesktop={isDesktop} version={boot.version}
-        onClose={() => setShowSettings(false)} onSave={saveSettings} langSetting={langSetting} onLang={changeLang} />
+        onClose={() => setShowSettings(false)} onSave={saveSettings} langSetting={langSetting} onLang={changeLang}
+        theme={theme} onTheme={changeTheme} onCheckUpdate={() => updater.check(true)} />
+
+      <UpdateDialog u={updater} kind={boot.update_kind} />
 
       <AnimatePresence>
         {dragging && (

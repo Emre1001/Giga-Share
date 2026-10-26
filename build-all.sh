@@ -12,6 +12,11 @@ OUT=dist-apps
 mkdir -p "$OUT"
 only="${1:-all}"
 V=$(node -p "require('./src-tauri/tauri.conf.json').version")
+# Desktop bundles are signed for the in-app updater (key from `npx tauri signer generate -w ~/.tauri/giga-share.key`).
+if [[ -z ${TAURI_SIGNING_PRIVATE_KEY:-} && -f $HOME/.tauri/giga-share.key ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY=$HOME/.tauri/giga-share.key
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}
+fi
 
 if [[ $only == all || $only == linux ]]; then
   echo "── Linux"
@@ -20,6 +25,7 @@ if [[ $only == all || $only == linux ]]; then
   cp "$B"/deb/Giga-Share_"$V"_amd64.deb "$OUT"/Giga-Share.deb
   cp "$B"/rpm/Giga-Share-"$V"-1.x86_64.rpm "$OUT"/Giga-Share.rpm
   cp "$B"/appimage/Giga-Share_"$V"_amd64.AppImage "$OUT"/Giga-Share.AppImage
+  cp "$B"/appimage/Giga-Share_"$V"_amd64.AppImage.sig "$OUT"/Giga-Share.AppImage.sig
 fi
 
 if [[ $only == all || $only == windows ]]; then
@@ -27,6 +33,7 @@ if [[ $only == all || $only == windows ]]; then
   rm -rf src-tauri/target/x86_64-pc-windows-gnu/release/bundle
   npx tauri build --target x86_64-pc-windows-gnu --bundles nsis
   cp src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Giga-Share_"$V"_x64-setup.exe "$OUT"/Giga-Share-Setup.exe
+  cp src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/Giga-Share_"$V"_x64-setup.exe.sig "$OUT"/Giga-Share-Setup.exe.sig
   # Portable: exe + portable.marker keeps config next to the exe (needs the WebView2 runtime, built into Win 10/11).
   P=$(mktemp -d)/Giga-Share-Portable
   mkdir -p "$P"
@@ -56,4 +63,17 @@ if [[ $only == all || $only == android ]]; then
     --out "$OUT"/Giga-Share.apk "$OUT"/aligned.apk
   rm -f "$OUT"/aligned.apk "$OUT"/*.idsig
 fi
+# Updater manifest: upload latest.json with the release (tag v$V) next to the installers.
+V="$V" OUT="$OUT" node -e '
+const fs = require("fs"), { V, OUT } = process.env;
+const url = f => `https://github.com/Emre1001/Giga-Share/releases/download/v${V}/${f}`;
+const platforms = {};
+for (const [key, file] of [["windows-x86_64", "Giga-Share-Setup.exe"], ["linux-x86_64", "Giga-Share.AppImage"]]) {
+  const sig = `${OUT}/${file}.sig`;
+  if (fs.existsSync(sig) && fs.statSync(sig).mtimeMs >= fs.statSync(`${OUT}/${file}`).mtimeMs)
+    platforms[key] = { signature: fs.readFileSync(sig, "utf8").trim(), url: url(file) };
+}
+if (Object.keys(platforms).length)
+  fs.writeFileSync(`${OUT}/latest.json`, JSON.stringify({ version: V, notes: "", pub_date: new Date().toISOString(), platforms }, null, 2));
+'
 ls -la "$OUT"

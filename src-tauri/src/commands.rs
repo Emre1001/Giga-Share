@@ -19,6 +19,23 @@ pub struct Bootstrap {
     version: String,
     /// Files from `--send` / "Open with" that arrived before the UI was ready.
     cli_files: Vec<String>,
+    /// How this install updates itself: "nsis", "appimage", "android" or "manual" (portable, deb, rpm).
+    update_kind: &'static str,
+}
+
+fn update_kind() -> &'static str {
+    match crate::state::os_type() {
+        "android" => "android",
+        "windows" if crate::state::portable_config_dir().is_none() => "nsis",
+        "linux" if std::env::var_os("APPIMAGE").is_some() => "appimage",
+        _ => "manual",
+    }
+}
+
+/// Opens the GitHub release page (installs that cannot update themselves).
+#[tauri::command]
+pub fn open_releases() -> Result<(), String> {
+    tauri_plugin_opener::open_url("https://github.com/Emre1001/Giga-Share/releases/latest", None::<&str>).map_err(|e| e.to_string())
 }
 
 /// Single call that returns everything the UI needs, and marks it ready for live events.
@@ -35,6 +52,7 @@ pub fn frontend_ready(app: AppHandle, state: State<AppState>) -> Bootstrap {
         os: crate::state::os_type(),
         version: app.package_info().version.to_string(),
         cli_files: std::mem::take(&mut *state.cli_files.lock().unwrap()),
+        update_kind: update_kind(),
     }
 }
 
