@@ -95,6 +95,13 @@ struct FinishedEvent<'a> {
     path: Option<String>,
 }
 
+/// Emits `transfer_started` and remembers it for UIs that start later.
+fn started(app: &AppHandle, ev: StartedEvent) {
+    let v = serde_json::to_value(&ev).unwrap_or_default();
+    crate::desktop::on_started(app, ev.id, v);
+    let _ = app.emit("transfer_started", ev);
+}
+
 pub enum Outcome {
     Done(Option<PathBuf>),
     Rejected,
@@ -121,9 +128,7 @@ pub async fn run_transfer(
         Err(_) if token.is_cancelled() => ("cancelled", None, None),
         Err(e) => ("failed", Some(e), None),
     };
-    if status == "done" {
-        crate::desktop::notify_if_hidden(&app, &crate::desktop::text(&app, "complete", ""), path.as_deref().unwrap_or(""));
-    }
+    crate::desktop::on_finished(&app, &id, status, path.as_deref());
     let _ = app.emit("transfer_finished", FinishedEvent { id: &id, status, error, path });
 }
 
@@ -250,11 +255,12 @@ struct Progress<'a> {
     last_emit: Instant,
     last_bytes: u64,
     speed: f64,
+    last_native: Instant,
 }
 
 impl<'a> Progress<'a> {
     fn new(app: &'a AppHandle, id: &'a str, total: u64, done: u64) -> Self {
-        let p = Self { app, id, total, done, last_emit: Instant::now(), last_bytes: done, speed: 0.0 };
+        let p = Self { app, id, total, done, last_emit: Instant::now(), last_bytes: done, speed: 0.0, last_native: Instant::now() };
         p.emit();
         p
     }
@@ -268,6 +274,10 @@ impl<'a> Progress<'a> {
             self.last_bytes = self.done;
             self.last_emit = Instant::now();
             self.emit();
+        }
+        if self.last_native.elapsed() >= Duration::from_secs(1) {
+            self.last_native = Instant::now();
+            crate::desktop::on_progress(self.app, self.id, self.done, self.total);
         }
     }
 
@@ -368,8 +378,8 @@ where
     let settings = app.state::<AppState>().settings();
     let entries: Vec<FileEntry> = files.iter().map(|f| f.entry.clone()).collect();
     let total: u64 = entries.iter().map(|e| e.size).sum();
-    let _ = app.emit(
-        "transfer_started",
+    started(
+        &app,
         StartedEvent {
             id: &id,
             direction: "send",
@@ -460,35 +470,35 @@ where
 
     let state = app.state::<AppState>();
     let settings = state.settings();
-    let accepted = if settings.auto_accept && known {
+    let auto = match via {
+        Via::Lan => settings.auto_accept_lan,
+        Via::Online => settings.auto_accept_online,
+    };
+    let accepted = if auto && known {
         true
     } else {
         let (tx, rx) = oneshot::channel();
         state.pending.lock().unwrap().insert(id.clone(), tx);
-        let _ = app.emit(
-            "transfer_request",
-            RequestEvent {
-                id: &id,
-                peer: &peer,
-                peer_id: peer_id.as_deref(),
-                via,
-                known,
-                file_count: manifest.files.len(),
-                total_size: total,
-                files: manifest.files.iter().take(5).map(|f| f.name.as_str()).collect(),
-            },
-        );
-        crate::desktop::notify_if_hidden(
-            &app,
-            &crate::desktop::text(&app, "incoming", ""),
-            &format!("{} · {}", crate::desktop::text(&app, "wantsSend", &peer), display_name(&manifest.files)),
-        );
+        let ev = RequestEvent {
+            id: &id,
+            peer: &peer,
+            peer_id: peer_id.as_deref(),
+            via,
+            known,
+            file_count: manifest.files.len(),
+            total_size: total,
+            files: manifest.files.iter().take(5).map(|f| f.name.as_str()).collect(),
+        };
+        crate::desktop::on_request(&app, &id, serde_json::to_value(&ev).unwrap_or_default(), &peer, &display_name(&manifest.files));
+        let _ = app.emit("transfer_request", ev);
         let mut probe = [0u8; 1];
-        tokio::select! {
-            d = tokio::time::timeout(DECISION_TIMEOUT, rx) => matches!(d, Ok(Ok(true))),
+        let decision = tokio::select! {
+            d = tokio::time::timeout(DECISION_TIMEOUT, rx) => Some(matches!(d, Ok(Ok(true)))),
             // The sender sends nothing while waiting, so any read result means it gave up.
-            _ = r.read(&mut probe) => return Err("Sender cancelled".into()),
-        }
+            _ = r.read(&mut probe) => None,
+        };
+        crate::desktop::request_closed(&app, &id);
+        decision.ok_or("Sender cancelled")?
     };
     if !accepted {
         let _ = w.write_u8(0).await;
@@ -507,8 +517,8 @@ where
     write_json(&mut w, &offsets).await?;
     w.flush().await.map_err(io_err)?;
 
-    let _ = app.emit(
-        "transfer_started",
+    started(
+        &app,
         StartedEvent {
             id: &id,
             direction: "receive",

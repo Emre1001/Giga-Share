@@ -24,13 +24,32 @@ pub fn parse_cli(args: &[String], cwd: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Shows the window, recreating it if it was closed to the tray.
 pub fn show_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
+    let w = match app.get_webview_window("main") {
+        Some(w) => w,
         #[cfg(desktop)]
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
+        None => match app.config().app.windows.first().map(|c| tauri::WebviewWindowBuilder::from_config(app, c).and_then(|b| b.build())) {
+            Some(Ok(w)) => w,
+            Some(Err(e)) => return log::error!("Cannot open window: {e}"),
+            None => return,
+        },
+        #[cfg(not(desktop))]
+        None => return,
+    };
+    #[cfg(desktop)]
+    let _ = w.unminimize();
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
+/// Whether closing the last window keeps the app running (tray on desktop, background service on Android).
+pub fn keep_running(app: &AppHandle) -> bool {
+    let wanted = app.state::<AppState>().settings().minimize_to_tray;
+    #[cfg(desktop)]
+    return wanted && TRAY_OK.load(Ordering::SeqCst);
+    #[cfg(not(desktop))]
+    wanted
 }
 
 pub fn handle_files(app: &AppHandle, files: Vec<String>) {
@@ -70,6 +89,30 @@ pub fn text(app: &AppHandle, key: &str, arg: &str) -> String {
         ("de", "wantsAdd") => "{} möchte dich hinzufügen",
         ("tr", "wantsAdd") => "{} seni eklemek istiyor",
         (_, "wantsAdd") => "{} wants to add you",
+        ("de", "failed") => "Übertragung fehlgeschlagen",
+        ("tr", "failed") => "Aktarım başarısız",
+        (_, "failed") => "Transfer failed",
+        ("de", "receivingFrom") => "Empfange von {}",
+        ("tr", "receivingFrom") => "{} cihazından alınıyor",
+        (_, "receivingFrom") => "Receiving from {}",
+        ("de", "sendingTo") => "Sende an {}",
+        ("tr", "sendingTo") => "{} cihazına gönderiliyor",
+        (_, "sendingTo") => "Sending to {}",
+        ("de", "accept") => "Annehmen",
+        ("tr", "accept") => "Kabul et",
+        (_, "accept") => "Accept",
+        ("de", "decline") => "Ablehnen",
+        ("tr", "decline") => "Reddet",
+        (_, "decline") => "Decline",
+        ("de", "cancel") => "Abbrechen",
+        ("tr", "cancel") => "İptal",
+        (_, "cancel") => "Cancel",
+        ("de", "bgTitle") => "Bereit zum Empfangen",
+        ("tr", "bgTitle") => "Almaya hazır",
+        (_, "bgTitle") => "Ready to receive",
+        ("de", "bgText") => "Geräte im WLAN und Freunde können dir Dateien senden",
+        ("tr", "bgText") => "Wi-Fi'daki cihazlar ve arkadaşlar sana dosya gönderebilir",
+        (_, "bgText") => "Devices on your Wi-Fi and friends can send you files",
         _ => key,
     };
     s.replace("{}", arg)
@@ -83,6 +126,86 @@ pub fn notify_if_hidden(app: &AppHandle, title: &str, body: &str) {
     if !visible {
         use tauri_plugin_notification::NotificationExt;
         let _ = app.notification().builder().title(title).body(body).show();
+    }
+}
+
+// ── Transfer lifecycle: kept in AppState for late UIs, mirrored to OS notifications ──
+
+/// A transfer waits for a decision. Desktop brings the window up; Android posts a notification
+/// with Accept / Decline that works without opening the app.
+pub fn on_request(app: &AppHandle, id: &str, ev: serde_json::Value, peer: &str, what: &str) {
+    app.state::<AppState>().requests.lock().unwrap().push(ev);
+    let title = text(app, "incoming", "");
+    let body = format!("{} · {what}", text(app, "wantsSend", peer));
+    #[cfg(target_os = "android")]
+    crate::android::request(app, id, &title, &body);
+    #[cfg(desktop)]
+    {
+        let _ = id;
+        notify_if_hidden(app, &title, &body);
+        show_main(app);
+    }
+}
+
+pub fn request_closed(app: &AppHandle, id: &str) {
+    app.state::<AppState>().requests.lock().unwrap().retain(|r| r["id"] != id);
+    #[cfg(target_os = "android")]
+    crate::android::clear(id);
+}
+
+pub fn on_started(app: &AppHandle, id: &str, ev: serde_json::Value) {
+    app.state::<AppState>().active.lock().unwrap().insert(id.to_string(), ev);
+    on_progress(app, id, 0, 0);
+}
+
+/// Called about once a second while bytes flow.
+#[allow(unused_variables)]
+pub fn on_progress(app: &AppHandle, id: &str, done: u64, total: u64) {
+    #[cfg(target_os = "android")]
+    if let Some(ev) = app.state::<AppState>().active.lock().unwrap().get(id) {
+        let peer = ev["peer"].as_str().unwrap_or_default();
+        let key = if ev["direction"] == "send" { "sendingTo" } else { "receivingFrom" };
+        let percent = if total > 0 { (done * 100 / total) as i32 } else { -1 };
+        crate::android::progress(app, id, &text(app, key, peer), ev["file_name"].as_str().unwrap_or_default(), percent);
+    }
+}
+
+pub fn on_finished(app: &AppHandle, id: &str, status: &str, path: Option<&str>) {
+    let state = app.state::<AppState>();
+    let ev = state.active.lock().unwrap().remove(id);
+    state.requests.lock().unwrap().retain(|r| r["id"] != id);
+    let name = ev.as_ref().and_then(|e| e["file_name"].as_str().map(str::to_string)).unwrap_or_default();
+    match status {
+        "done" => {
+            #[cfg(target_os = "android")]
+            crate::android::finished(app, id, &text(app, "complete", ""), &name);
+            #[cfg(desktop)]
+            notify_if_hidden(app, &text(app, "complete", ""), path.unwrap_or(&name));
+        }
+        "failed" => {
+            #[cfg(target_os = "android")]
+            crate::android::finished(app, id, &text(app, "failed", ""), &name);
+            #[cfg(desktop)]
+            notify_if_hidden(app, &text(app, "failed", ""), &name);
+        }
+        _ => {
+            #[cfg(target_os = "android")]
+            crate::android::clear(id);
+        }
+    }
+    let _ = path;
+}
+
+/// Decision from the UI or an Android notification action.
+pub fn respond(app: &AppHandle, id: &str, accept: bool) {
+    if let Some(tx) = app.state::<AppState>().pending.lock().unwrap().remove(id) {
+        let _ = tx.send(accept);
+    }
+}
+
+pub fn cancel(app: &AppHandle, id: &str) {
+    if let Some(t) = app.state::<AppState>().cancels.lock().unwrap().get(id) {
+        t.cancel();
     }
 }
 
@@ -117,21 +240,11 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         Err(e) => log::warn!("Tray unavailable: {e}"),
     }
 
-    if let Some(w) = app.get_webview_window("main") {
-        let handle = app.handle().clone();
-        w.on_window_event(move |e| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
-                let to_tray = handle.state::<AppState>().settings().minimize_to_tray;
-                if to_tray && TRAY_OK.load(Ordering::SeqCst) {
-                    api.prevent_close();
-                    if let Some(w) = handle.get_webview_window("main") {
-                        let _ = w.hide();
-                    }
-                }
-            }
-        });
-        if std::env::args().any(|a| a == "--minimized") && TRAY_OK.load(Ordering::SeqCst) {
-            let _ = w.hide();
+    // Closing the window destroys it (see `keep_running`) and the tray recreates it, so a tray-only
+    // app runs without a webview. Autostart (`--minimized`) drops it right away.
+    if std::env::args().any(|a| a == "--minimized") && TRAY_OK.load(Ordering::SeqCst) {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.destroy();
         }
     }
 

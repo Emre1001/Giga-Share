@@ -92,6 +92,8 @@ class MainActivity : TauriActivity() {
 
   override fun onResume() {
     super.onResume()
+    // Process survived in the background without UI (app swiped away): Rust attaches a new webview.
+    try { GigaNotify.nativeEnsureWindow() } catch (e: UnsatisfiedLinkError) { }
     // Back from the system installer (installed or cancelled): the APK is no longer needed.
     if (updateHandedOff) { updateHandedOff = false; updateDir.deleteRecursively() }
   }
@@ -133,37 +135,76 @@ class MainActivity : TauriActivity() {
       updateCancelled = false
       Thread {
         val file = File(updateDir, "update.apk")
-        try {
-          updateDir.deleteRecursively(); updateDir.mkdirs()
-          val conn = URL(url).openConnection() as HttpURLConnection // follows GitHub's redirect to its CDN
-          conn.connectTimeout = 15_000; conn.readTimeout = 15_000
+        var error: Exception? = null
+        // Mobile connections drop: up to three attempts before reporting the error.
+        for (attempt in 1..3) {
+          if (updateCancelled) break
           try {
-            val total = conn.contentLengthLong
-            conn.inputStream.use { input -> file.outputStream().use { out ->
-              val buf = ByteArray(64 * 1024); var done = 0L; var last = -1
-              while (true) {
-                if (updateCancelled) throw InterruptedException("cancelled")
-                val n = input.read(buf); if (n < 0) break
-                out.write(buf, 0, n); done += n
-                if (total > 0) { val p = (done * 100 / total).toInt(); if (p != last) { last = p; emitUpdate(JSONObject().put("type", "progress").put("percent", p)) } }
-              }
-            } }
-          } finally { conn.disconnect() }
-          val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", file)
-          runOnUiThread {
-            updateHandedOff = true
+            download(url, file)
+            error = null
+            break
+          } catch (e: Exception) {
+            error = e
+            if (!updateCancelled && attempt < 3) Thread.sleep(2000L * attempt)
+          }
+        }
+        if (error != null || updateCancelled) {
+          updateDir.deleteRecursively()
+          if (!updateCancelled) emitUpdate(JSONObject().put("type", "error").put("message", error.toString()))
+          return@Thread
+        }
+        val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", file)
+        runOnUiThread {
+          updateHandedOff = true
+          try {
             startActivity(Intent(Intent.ACTION_VIEW).apply {
               setDataAndType(uri, "application/vnd.android.package-archive")
               addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             })
+            emitUpdate(JSONObject().put("type", "handoff"))
+          } catch (e: Exception) {
+            updateHandedOff = false
+            emitUpdate(JSONObject().put("type", "error").put("message", e.toString()))
           }
-          emitUpdate(JSONObject().put("type", "handoff"))
-        } catch (e: Exception) {
-          updateDir.deleteRecursively()
-          if (!updateCancelled) emitUpdate(JSONObject().put("type", "error").put("message", e.toString()))
         }
       }.start()
     }
+  }
+
+  /** Downloads `url` into `file`, following GitHub's redirect to its CDN; checks status and length. */
+  private fun download(url: String, file: File) {
+    updateDir.deleteRecursively(); updateDir.mkdirs()
+    var conn = URL(url).openConnection() as HttpURLConnection
+    var hops = 0
+    while (true) {
+      conn.instanceFollowRedirects = false
+      conn.connectTimeout = 20_000; conn.readTimeout = 30_000
+      conn.setRequestProperty("User-Agent", "Giga-Share-Updater")
+      val code = conn.responseCode
+      if (code in 300..399 && hops++ < 5) {
+        val next = conn.getHeaderField("Location") ?: throw java.io.IOException("Redirect without location")
+        conn.disconnect()
+        conn = URL(URL(url), next).openConnection() as HttpURLConnection
+        if (conn.url.protocol != "https") throw java.io.IOException("Insecure redirect")
+        continue
+      }
+      if (code != 200) throw java.io.IOException("HTTP $code")
+      break
+    }
+    try {
+      val total = conn.contentLengthLong
+      var done = 0L
+      conn.inputStream.use { input -> file.outputStream().use { out ->
+        val buf = ByteArray(64 * 1024); var last = -1
+        while (true) {
+          if (updateCancelled) throw InterruptedException("cancelled")
+          val n = input.read(buf); if (n < 0) break
+          out.write(buf, 0, n); done += n
+          if (total > 0) { val p = (done * 100 / total).toInt(); if (p != last) { last = p; emitUpdate(JSONObject().put("type", "progress").put("percent", p)) } }
+        }
+      } }
+      if (total > 0 && done != total) throw java.io.IOException("Incomplete download ($done of $total bytes)")
+    } finally { conn.disconnect() }
   }
 
   override fun onDestroy() {

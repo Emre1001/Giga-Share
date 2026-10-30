@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ch_requests">Übertragungsanfragen</string>
+    <string name="ch_transfers">Übertragungen</string>
+    <string name="ch_background">Empfangsbereit</string>
+</resources>

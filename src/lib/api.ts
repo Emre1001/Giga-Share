@@ -4,7 +4,8 @@ export interface Settings {
   device_name: string;
   download_path: string;
   port: number;
-  auto_accept: boolean;
+  auto_accept_lan: boolean;
+  auto_accept_online: boolean;
   online_mode: boolean;
   speed_limit_lan_mbps: number;
   speed_limit_online_mbps: number;
@@ -44,6 +45,8 @@ export interface Bootstrap {
   version: string;
   cli_files: string[];
   update_kind: UpdateKind;
+  requests: IncomingRequest[];
+  active: { id: string; direction: "send" | "receive"; peer: string; via: Via; file_name: string; file_count: number; total: number }[];
 }
 
 export type UpdateKind = "nsis" | "appimage" | "android" | "manual";

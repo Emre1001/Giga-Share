@@ -24,6 +24,7 @@ import { HotspotDialog } from "./components/HotspotDialog";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useUpdater } from "./lib/update";
 
+type StartedTransfer = Bootstrap["active"][number];
 interface Toast { id: number; text: string; kind: "error" | "success" | "info" }
 
 const HISTORY_KEY = "gs-history";
@@ -93,6 +94,11 @@ export default function App() {
   const xf = useRef(new Map<string, Transfer>());
   const putTransfer = (t: Transfer) => { xf.current.set(t.id, t); setTransfers(new Map(xf.current)); };
   const dropTransfer = (id: string) => { xf.current.delete(id); setTransfers(new Map(xf.current)); };
+  const putStarted = (p: StartedTransfer) =>
+    putTransfer({
+      id: p.id, direction: p.direction, peer: p.peer, via: p.via, name: p.file_name, count: p.file_count,
+      total: p.total, bytes: 0, speed: 0, samples: [], status: p.direction === "send" ? "waiting" : "active", at: Date.now(),
+    });
   const patchTransfer = (id: string, f: (t: Transfer) => Transfer) => {
     const t = xf.current.get(id);
     if (t) putTransfer(f(t));
@@ -119,14 +125,7 @@ export default function App() {
       }),
       listen<string[]>("cli_send_files", e => setPending(e.payload)),
       listen<IncomingRequest>("transfer_request", e => setRequests(r => [...r, e.payload])),
-      listen<{ id: string; direction: "send" | "receive"; peer: string; via: "lan" | "online"; file_name: string; file_count: number; total: number }>(
-        "transfer_started",
-        ({ payload: p }) =>
-          putTransfer({
-            id: p.id, direction: p.direction, peer: p.peer, via: p.via, name: p.file_name, count: p.file_count,
-            total: p.total, bytes: 0, speed: 0, samples: [], status: p.direction === "send" ? "waiting" : "active", at: Date.now(),
-          }),
-      ),
+      listen<StartedTransfer>("transfer_started", ({ payload }) => putStarted(payload)),
       listen<{ id: string; bytes: number; total: number; speed: number }>("transfer_progress", ({ payload: p }) =>
         patchTransfer(p.id, t => ({
           ...t, status: "active", bytes: p.bytes, total: p.total, speed: p.speed,
@@ -181,6 +180,9 @@ export default function App() {
         setFriends(b.friends);
         setP2p(b.p2p);
         if (b.cli_files.length) setPending(b.cli_files);
+        // Requests and transfers that began while no window was open (tray / Android background).
+        setRequests(r => [...r, ...b.requests.filter(x => !r.some(y => y.id === x.id))]);
+        b.active.forEach(p => xf.current.has(p.id) || putStarted(p));
         if (b.lan_error) toast(b.lan_error);
       }),
     );

@@ -47,7 +47,10 @@ if [[ $only == all || $only == android ]]; then
   export JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}
   export ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
   export NDK_HOME=${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}
-  npx tauri android build --apk --target aarch64 armv7
+  # versionCode = minutes since 2020: always rising, independent of the version name
+  # (1.0.0 replaced the 2.0.x previews, which had versionCode 2000002).
+  VC=$(( ($(date +%s) - 1577836800) / 60 ))
+  npx tauri android build --apk --target aarch64 armv7 --config "{\"bundle\":{\"android\":{\"versionCode\":$VC}}}"
   UNSIGNED=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*-unsigned.apk)
   BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
   KS=${GIGASHARE_KEYSTORE:-$HOME/.android/debug.keystore}

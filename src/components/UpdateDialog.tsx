@@ -34,6 +34,7 @@ export function UpdateDialog({ u, kind }: { u: U; kind: UpdateKind }) {
           </div>
 
           {phase === "available" && kind === "manual" && <p className="sub update-manual">{t("updateManual")}</p>}
+          {phase === "error" && u.error && <p className="mono update-error">{u.error}</p>}
           {phase === "available" && info.notes && (
             <div className="update-notes">
               <span className="eyebrow">{t("updateNotes")}</span>
@@ -61,7 +62,8 @@ export function UpdateDialog({ u, kind }: { u: U; kind: UpdateKind }) {
               </>
             )}
             {phase === "downloading" && kind === "android" && <button className="btn btn-line" onClick={u.cancel}>{t("cancel")}</button>}
-            {(phase === "handoff" || phase === "error") && <button className="btn btn-line" onClick={u.close}>{t("close")}</button>}
+            {phase === "handoff" && <button className="btn btn-line" onClick={u.close}>{t("close")}</button>}
+            {phase === "error" && <button className="btn btn-line" onClick={u.openPage}>{t("updateOpenPage")}</button>}
             {phase === "permission" && <button className="btn btn-line" onClick={u.later}>{t("updateLater")}</button>}
             {(phase === "error" || phase === "permission") && (
               <button className="btn btn-primary" autoFocus onClick={u.install}>{t(phase === "error" ? "updateRetry" : "updateInstall")}</button>

@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android;
 mod commands;
 mod desktop;
 mod discovery;
@@ -52,7 +54,10 @@ pub fn run() {
             #[cfg(desktop)]
             desktop::setup(app)?;
             #[cfg(target_os = "android")]
-            desktop::watch_share_inbox(app.handle().clone());
+            {
+                desktop::watch_share_inbox(app.handle().clone());
+                android::init(app.handle());
+            }
 
             let handle = app.handle().clone();
             discovery::start(handle.clone());
@@ -81,10 +86,18 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Giga-Share")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
+        .run(|app, event| match event {
+            // The last window closed (desktop: closed to tray; Android: activity gone). Keep receiving
+            // in the background without a webview, which is where almost all idle memory goes.
+            tauri::RunEvent::ExitRequested { code: None, api, .. } if desktop::keep_running(app) => api.prevent_exit(),
+            // Files handed over while no UI runs are queued for the next `frontend_ready`.
+            tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Destroyed, .. } => {
+                app.state::<state::AppState>().frontend_ready.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+            tauri::RunEvent::Exit => {
                 discovery::say_bye(app);
                 let _ = hotspot::stop_if_running();
             }
+            _ => {}
         });
 }

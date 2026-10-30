@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">"Giga-Share"</string>
     <string name="main_activity_title">"Giga-Share"</string>
+    <string name="ch_requests">Transfer requests</string>
+    <string name="ch_transfers">Transfers</string>
+    <string name="ch_background">Ready to receive</string>
 </resources>

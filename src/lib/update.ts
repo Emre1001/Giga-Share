@@ -25,16 +25,6 @@ declare global {
   interface Window { GigaNative?: GigaNative; __gsUpdate?: (e: UpdateEvent) => void }
 }
 
-/** Numeric dotted compare: is `a` newer than `b`? */
-export function isNewer(a: string, b: string) {
-  const pa = a.split(/[.-]/).map(Number), pb = b.split(/[.-]/).map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d) return d > 0;
-  }
-  return false;
-}
-
 /** Release notes are Markdown; shown as plain text (never as HTML). */
 const plainNotes = (md: string) =>
   md.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/^#+\s*/gm, "").replace(/\*\*|__|`/g, "").trim();
@@ -58,6 +48,7 @@ export function useUpdater(kind: UpdateKind, current: string) {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [phase, setPhase] = useState<Phase>("available");
   const [percent, setPercent] = useState(0);
+  const [error, setError] = useState("");
   const pending = useRef<import("@tauri-apps/plugin-updater").Update | null>(null);
   const busy = useRef(false);
 
@@ -67,7 +58,9 @@ export function useUpdater(kind: UpdateKind, current: string) {
     try {
       const rel = await latestRelease();
       const version = rel.tag_name.replace(/^v/, "");
-      if (!isNewer(version, current)) return "none";
+      // Any release other than the installed one is the update: the latest release always wins,
+      // whatever its number (1.0 replaced the 2.0.x previews).
+      if (version === current) return "none";
       if (!manual && (local.get(K_SKIPPED) === version || Number(local.get(K_REMIND) || 0) > Date.now())) return "none";
       let apk: string | undefined;
       if (kind === "android") {
@@ -99,12 +92,18 @@ export function useUpdater(kind: UpdateKind, current: string) {
     return () => { clearTimeout(first); clearInterval(every); };
   }, [check]);
 
+  const fail = (msg: unknown) => {
+    console.error("[update]", msg);
+    setError(String(msg instanceof Error ? msg.message : msg));
+    setPhase("error");
+  };
+
   // Android reports download progress through this global.
   useEffect(() => {
     window.__gsUpdate = e => {
       if (e.type === "progress") setPercent(e.percent);
       else if (e.type === "handoff") setPhase("handoff");
-      else { console.error("[update]", e.message); setPhase("error"); }
+      else fail(e.message);
     };
     return () => { delete window.__gsUpdate; };
   }, []);
@@ -118,33 +117,61 @@ export function useUpdater(kind: UpdateKind, current: string) {
     }
     if (kind === "android") {
       const n = window.GigaNative;
-      if (!n || !info.apk) return setPhase("error");
+      if (!n || !info.apk) return fail("Android bridge unavailable");
       if (!n.canInstallPackages()) { n.openInstallSettings(); return setPhase("permission"); }
       setPercent(0);
+      setError("");
       setPhase("downloading");
       n.downloadUpdate(info.apk);
       return;
     }
-    const update = pending.current;
-    if (!update) return setPhase("error");
     setPercent(0);
+    setError("");
     setPhase("downloading");
+    const { check: tauriCheck } = await import("@tauri-apps/plugin-updater");
+    // Flaky connections drop the download now and then: fetch a fresh update handle and try again.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const update = attempt === 1 && pending.current ? pending.current : await tauriCheck({ timeout: 30000 });
+        if (!update) throw new Error("No signed update found for this platform");
+        pending.current = update;
+        let total = 0, got = 0;
+        setPercent(0);
+        await update.downloadAndInstall(e => {
+          if (e.event === "Started") total = e.data.contentLength ?? 0;
+          else if (e.event === "Progress") { got += e.data.chunkLength; if (total) setPercent((got / total) * 100); }
+          else setPhase("installing");
+        }, { timeout: 10 * 60 * 1000 });
+        break;
+      } catch (e) {
+        if (attempt >= 3) return fail(e);
+        console.warn(`[update] attempt ${attempt} failed`, e);
+        await new Promise(r => setTimeout(r, 2000 * attempt));
+      }
+    }
+    setPhase("installing");
     try {
-      let total = 0, got = 0;
-      await update.downloadAndInstall(e => {
-        if (e.event === "Started") total = e.data.contentLength ?? 0;
-        else if (e.event === "Progress") { got += e.data.chunkLength; if (total) setPercent((got / total) * 100); }
-        else setPhase("installing");
-      });
-      setPhase("installing");
       const { relaunch } = await import("@tauri-apps/plugin-process");
       await relaunch();
     } catch (e) {
-      console.error("[update] install failed", e);
-      setPhase("error");
+      fail(e);
     }
   }, [info, kind]);
 
+  // Back from Android's "install unknown apps" screen with the permission granted: continue by itself.
+  useEffect(() => {
+    if (phase !== "permission") return;
+    const resume = () => { if (!document.hidden && window.GigaNative?.canInstallPackages()) install(); };
+    document.addEventListener("visibilitychange", resume);
+    return () => document.removeEventListener("visibilitychange", resume);
+  }, [phase, install]);
+
+  /** Fallback when the in-app install keeps failing: the release page always works. */
+  const openPage = useCallback(async () => {
+    const { api } = await import("./api");
+    api.openReleases().catch(() => {});
+    setInfo(null);
+  }, []);
   const cancel = useCallback(() => {
     window.GigaNative?.cancelUpdate();
     setPhase("available");
@@ -153,5 +180,5 @@ export function useUpdater(kind: UpdateKind, current: string) {
   const skip = useCallback(() => { if (info) local.set(K_SKIPPED, info.version); setInfo(null); }, [info]);
   const close = useCallback(() => setInfo(null), []);
 
-  return { info, phase, percent, check, install, cancel, later, skip, close };
+  return { info, phase, percent, error, check, install, cancel, later, skip, close, openPage };
 }

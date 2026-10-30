@@ -21,6 +21,9 @@ pub struct Bootstrap {
     cli_files: Vec<String>,
     /// How this install updates itself: "nsis", "appimage", "android" or "manual" (portable, deb, rpm).
     update_kind: &'static str,
+    /// Open requests and running transfers, for a UI that starts after they began.
+    requests: Vec<serde_json::Value>,
+    active: Vec<serde_json::Value>,
 }
 
 fn update_kind() -> &'static str {
@@ -53,6 +56,8 @@ pub fn frontend_ready(app: AppHandle, state: State<AppState>) -> Bootstrap {
         version: app.package_info().version.to_string(),
         cli_files: std::mem::take(&mut *state.cli_files.lock().unwrap()),
         update_kind: update_kind(),
+        requests: state.requests.lock().unwrap().clone(),
+        active: state.active.lock().unwrap().values().cloned().collect(),
     }
 }
 
@@ -79,6 +84,10 @@ pub fn update_settings(app: AppHandle, state: State<AppState>, mut settings: Set
     if old.port != settings.port {
         transfer::restart_server(&app);
     }
+    #[cfg(target_os = "android")]
+    if old.minimize_to_tray != settings.minimize_to_tray {
+        crate::android::service(&app);
+    }
     Ok(settings)
 }
 
@@ -95,17 +104,13 @@ pub async fn send_online(app: AppHandle, friend_id: String, paths: Vec<String>) 
 }
 
 #[tauri::command]
-pub fn respond_transfer(state: State<AppState>, id: String, accept: bool) {
-    if let Some(tx) = state.pending.lock().unwrap().remove(&id) {
-        let _ = tx.send(accept);
-    }
+pub fn respond_transfer(app: AppHandle, id: String, accept: bool) {
+    crate::desktop::respond(&app, &id, accept);
 }
 
 #[tauri::command]
-pub fn cancel_transfer(state: State<AppState>, id: String) {
-    if let Some(t) = state.cancels.lock().unwrap().get(&id) {
-        t.cancel();
-    }
+pub fn cancel_transfer(app: AppHandle, id: String) {
+    crate::desktop::cancel(&app, &id);
 }
 
 /// Adds the friend locally and asks them (over P2P) to add us back.
@@ -230,8 +235,12 @@ fn resolve_paths(app: &AppHandle, paths: Vec<String>) -> Result<Vec<String>, Str
 }
 
 #[tauri::command]
-pub fn set_language(state: State<AppState>, lang: String) {
-    if ["en", "de", "tr"].contains(&lang.as_str()) {
+pub fn set_language(app: AppHandle, state: State<AppState>, lang: String) {
+    if ["en", "de", "tr"].contains(&lang.as_str()) && *state.lang.lock().unwrap() != lang {
         *state.lang.lock().unwrap() = lang;
+        // The background notification is localized too.
+        #[cfg(target_os = "android")]
+        crate::android::service(&app);
     }
+    let _ = &app;
 }

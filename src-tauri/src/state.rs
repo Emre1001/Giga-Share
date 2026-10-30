@@ -14,7 +14,12 @@ pub struct Settings {
     pub device_name: String,
     pub download_path: String,
     pub port: u16,
-    pub auto_accept: bool,
+    /// Accept without asking: LAN devices / online friends, set separately.
+    pub auto_accept_lan: bool,
+    pub auto_accept_online: bool,
+    /// Pre-2.1 single switch; migrated into both fields on load.
+    #[serde(skip_serializing)]
+    pub auto_accept: Option<bool>,
     pub online_mode: bool,
     pub speed_limit_lan_mbps: f64,
     pub speed_limit_online_mbps: f64,
@@ -29,7 +34,9 @@ impl Default for Settings {
             device_name: default_device_name(),
             download_path: default_download_dir().to_string_lossy().into_owned(),
             port: 52526,
-            auto_accept: false,
+            auto_accept_lan: false,
+            auto_accept_online: false,
+            auto_accept: None,
             online_mode: false,
             speed_limit_lan_mbps: 0.0,
             speed_limit_online_mbps: 0.0,
@@ -61,6 +68,10 @@ pub struct AppState {
     /// Incoming transfers waiting for the user to accept/reject.
     pub pending: Mutex<HashMap<String, oneshot::Sender<bool>>>,
     pub cancels: Mutex<HashMap<String, CancellationToken>>,
+    /// Open transfer requests and running transfers (as sent to the UI), so a UI that
+    /// starts later (window recreated from the tray, Android activity restarted) sees them.
+    pub requests: Mutex<Vec<serde_json::Value>>,
+    pub active: Mutex<HashMap<String, serde_json::Value>>,
     pub router: tokio::sync::OnceCell<iroh::protocol::Router>,
     pub p2p_error: Mutex<Option<String>>,
     pub lan_error: Mutex<Option<String>>,
@@ -75,7 +86,11 @@ pub struct AppState {
 impl AppState {
     pub fn new(config_dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&config_dir);
-        let settings: Settings = read_json(&config_dir.join("settings.json")).unwrap_or_default();
+        let mut settings: Settings = read_json(&config_dir.join("settings.json")).unwrap_or_default();
+        if let Some(v) = settings.auto_accept.take() {
+            settings.auto_accept_lan = v;
+            settings.auto_accept_online = v;
+        }
         let friends: Vec<Friend> = read_json(&config_dir.join("friends.json")).unwrap_or_default();
         Self {
             config_dir,
@@ -85,6 +100,8 @@ impl AppState {
             friends: Mutex::new(friends),
             pending: Mutex::new(HashMap::new()),
             cancels: Mutex::new(HashMap::new()),
+            requests: Mutex::new(Vec::new()),
+            active: Mutex::new(HashMap::new()),
             router: tokio::sync::OnceCell::new(),
             p2p_error: Mutex::new(None),
             lan_error: Mutex::new(None),
@@ -167,4 +184,20 @@ fn default_download_dir() -> PathBuf {
         .or_else(dirs::home_dir)
         .unwrap_or_else(std::env::temp_dir)
         .join("Giga-Share")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_auto_accept_migrates_to_both() {
+        let dir = std::env::temp_dir().join(format!("gs-state-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{"auto_accept": true, "port": 52530}"#).unwrap();
+        let s = AppState::new(dir.clone()).settings();
+        assert!(s.auto_accept_lan && s.auto_accept_online && s.auto_accept.is_none());
+        assert_eq!(s.port, 52530);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

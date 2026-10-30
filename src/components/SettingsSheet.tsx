@@ -126,9 +126,19 @@ export function SettingsSheet({ open, settings, isDesktop, version, onClose, onS
               <div className="group">
                 <span className="eyebrow">{t("receiving")}</span>
                 <div className="setting">
-                  <div className="txt"><b>{t("autoAccept")}</b><small>{t("autoAcceptSub")}</small></div>
-                  <Switch on={draft.auto_accept} onChange={v => save({ auto_accept: v })} />
+                  <div className="txt"><b>{t("autoAcceptLan")}</b><small>{t("autoAcceptLanSub")}</small></div>
+                  <Switch on={draft.auto_accept_lan} onChange={v => save({ auto_accept_lan: v })} />
                 </div>
+                <div className="setting">
+                  <div className="txt"><b>{t("autoAcceptOnline")}</b><small>{t("autoAcceptOnlineSub")}</small></div>
+                  <Switch on={draft.auto_accept_online} onChange={v => save({ auto_accept_online: v })} />
+                </div>
+                {!isDesktop && (
+                  <div className="setting">
+                    <div className="txt"><b>{t("background")}</b><small>{t("backgroundSub")}</small></div>
+                    <Switch on={draft.minimize_to_tray} onChange={v => save({ minimize_to_tray: v })} />
+                  </div>
+                )}
                 <div className="setting">
                   <div className="txt"><b>{t("tcpPort")}</b><small>{t("tcpPortSub")}</small></div>
                   <input className="input num mono" type="number" min={1024} max={65535} value={draft.port}

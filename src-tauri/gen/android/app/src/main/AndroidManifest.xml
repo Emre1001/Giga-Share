@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- In-app updates: hand the downloaded release APK to the system installer -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Receive in the background: foreground service, transfers with the screen off -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
@@ -48,6 +52,14 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".GigaService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+        <receiver
+            android:name=".GigaActionReceiver"
+            android:exported="false" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

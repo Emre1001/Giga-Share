@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ch_requests">Aktarım istekleri</string>
+    <string name="ch_transfers">Aktarımlar</string>
+    <string name="ch_background">Almaya hazır</string>
+</resources>
